@@ -1,109 +1,5 @@
 const profanityList = require('../profanityList');
-let GoogleGenerativeAI = null;
-try {
-    ({ GoogleGenerativeAI } = require('@google/generative-ai'));
-} catch (e) {
-    GoogleGenerativeAI = null;
-}
 
-// Initialize Gemini for context checks if available
-const genAI = (process.env.GEMINI_API_KEY && GoogleGenerativeAI) ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
-const geminiModelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-const model = genAI ? genAI.getGenerativeModel({ model: geminiModelName }) : null;
-
-const _geminiCache = new Map();
-function _cacheGet(key) {
-    const ttl = Number(process.env.GEMINI_CACHE_TTL_MS || 60000);
-    const hit = _geminiCache.get(key);
-    if (!hit) return null;
-    if (Date.now() - hit.at > ttl) {
-        _geminiCache.delete(key);
-        return null;
-    }
-    return hit.val;
-}
-
-function _cacheSet(key, val) {
-    _geminiCache.set(key, { at: Date.now(), val });
-    if (_geminiCache.size > 500) {
-        const firstKey = _geminiCache.keys().next().value;
-        if (firstKey) _geminiCache.delete(firstKey);
-    }
-}
-
-async function classifyWithGemini(text) {
-    if (!model) return { ok: false };
-    const raw = String(text || '');
-    const trimmed = raw.trim();
-    if (!trimmed) return { ok: true, isViolation: false, confidence: 1, reason: 'empty' };
-
-    const maxLen = Number(process.env.GEMINI_MAX_CHARS || 500);
-    const input = trimmed.length > maxLen ? trimmed.slice(0, maxLen) : trimmed;
-
-    const cacheKey = `${geminiModelName}:${input}`;
-    const cached = _cacheGet(cacheKey);
-    if (cached) return cached;
-
-    const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS || 5000);
-    const prompt =
-        `You are a strict profanity moderation classifier for Discord messages.\n` +
-        `Detect profanity/insults/slurs/sexual insults in Arabic dialects (EG/Gulf/etc), MSA, English, and Franco-Arabic.\n` +
-        `Return ONLY valid minified JSON: {"isViolation":boolean,"confidence":number,"reason":string}.\n` +
-        `confidence must be between 0 and 1.\n` +
-        `Message: ${JSON.stringify(input)}`;
-
-    try {
-        const result = await Promise.race([
-            model.generateContent(prompt),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('GEMINI_TIMEOUT')), timeoutMs))
-        ]);
-
-        const jsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(jsonString);
-        const out = {
-            ok: true,
-            isViolation: Boolean(parsed.isViolation),
-            confidence: Math.max(0, Math.min(1, Number(parsed.confidence))),
-            reason: String(parsed.reason || '')
-        };
-        _cacheSet(cacheKey, out);
-        return out;
-    } catch (e) {
-        return { ok: false, error: String(e?.message || e) };
-    }
-}
-
-async function detectProfanityAI(content, { extraTerms = [], whitelist = [] } = {}) {
-    const mode = String(process.env.GEMINI_MODE || 'hybrid').toLowerCase();
-    const aiThreshold = Math.max(0, Math.min(1, Number(process.env.GEMINI_CONFIDENCE_THRESHOLD || 0.85)));
-    const failSafe = String(process.env.GEMINI_FAILSAFE || 'on').toLowerCase() !== 'off';
-
-    // Always keep rules in the loop for exact blacklist hits + whitelists.
-    const rules = detectProfanitySmart(content, { extraTerms, whitelist });
-
-    // In hybrid mode: only consult AI when rules are suspicious.
-    // In first mode: consult AI for every message, then optionally fail-safe to rules.
-    const shouldAskAI = model && (mode === 'first' || rules.isViolation);
-    if (!shouldAskAI) return { ...rules, source: 'rules' };
-
-    const ai = await classifyWithGemini(content);
-    if (ai.ok) {
-        if (ai.isViolation && ai.confidence >= aiThreshold) {
-            return { isViolation: true, matches: rules.matches || [], source: 'ai', ai };
-        }
-        // If AI says NOT violation, prefer AI to reduce false positives.
-        if (!ai.isViolation) {
-            // But in fail-safe mode, keep explicit rules hits.
-            if (failSafe && rules.isViolation) return { ...rules, source: 'rules', ai };
-            return { isViolation: false, matches: [], source: 'ai', ai };
-        }
-        // AI unsure / low confidence
-        return failSafe ? { ...rules, source: 'rules', ai } : { isViolation: false, matches: [], source: 'ai', ai };
-    }
-
-    // AI unavailable -> fallback
-    return { ...rules, source: 'rules', ai };
-}
 
 /**
  * Normalizes text for better detection (Arabic/English)
@@ -295,48 +191,12 @@ function getFuzzyMatch(word, blacklist) {
 }
 
 async function aiContextCheck(text, detectedWords) {
-    if (!model) return { isViolation: true, confidence: 80 };
-    try {
-        const prompt =
-            `You are a strict profanity moderation classifier. Decide if the message contains profanity/insults/slurs in English or Arabic (including Franco-Arabic).
-Return ONLY valid minified JSON with keys: {"isViolation":boolean,"confidence":number,"reason":string}.
-confidence must be between 0 and 1.
-Message: ${JSON.stringify(String(text || ''))}
-Suspected terms: ${JSON.stringify(detectedWords.slice(0, 10))}`;
-
-        const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS || 5000);
-        const result = await Promise.race([
-            model.generateContent(prompt),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('GEMINI_TIMEOUT')), timeoutMs))
-        ]);
-        const jsonString = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(jsonString);
-        const conf = Math.max(0, Math.min(1, Number(parsed.confidence)));
-        return {
-            isViolation: Boolean(parsed.isViolation),
-            confidence: conf,
-            reason: String(parsed.reason || '')
-        };
-    } catch (e) {
-        return { isViolation: true, confidence: 0.7, reason: 'AI_error' };
-    }
+    return { isViolation: true, confidence: 0.7, reason: 'AI_disabled' };
 }
 
 async function detectProfanityHybrid(content, { extraTerms = [], whitelist = [] } = {}) {
     const base = detectProfanitySmart(content, { extraTerms, whitelist });
-    if (!base.isViolation) return { ...base, source: 'rules' };
-
-    // If no AI available, keep rules decision.
-    if (!model) return { ...base, source: 'rules' };
-
-    const ai = await aiContextCheck(content, base.matches || []);
-    const threshold = Math.max(0, Math.min(1, Number(process.env.GEMINI_CONFIDENCE_THRESHOLD || 0.85)));
-
-    // Only act if AI is confident it's a violation; otherwise treat as non-violation to reduce false positives.
-    if (ai?.isViolation && Number(ai.confidence) >= threshold) {
-        return { isViolation: true, matches: base.matches || [], source: 'ai', ai };
-    }
-    return { isViolation: false, matches: [], source: 'ai', ai };
+    return { ...base, source: 'rules' };
 }
 
 async function analyzeMessage(messageContent) {

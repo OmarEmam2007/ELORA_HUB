@@ -18,6 +18,9 @@ async function loadCommands(client) {
                 client.commands.set(command.data.name, command);
                 commandsArray.push(command.data.toJSON());
                 console.log(`✅ Successfully loaded: ${file}`);
+                if (file === 'confess.js') {
+                    console.log('[SUCCESS] confess.js is no longer empty and has been loaded');
+                }
             }
         }
     }

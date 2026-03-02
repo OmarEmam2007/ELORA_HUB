@@ -12,6 +12,16 @@ const SettingsCommand = require('../../commands/utility/settings');
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
+        // HUB must not handle moderation/security interactions (owned by SHIELD)
+        try {
+            const id = String(interaction.customId || '');
+            if (id.startsWith('mod_') || id.startsWith('dash_') || id.startsWith('settings_') || id === 'settings_menu') {
+                return;
+            }
+        } catch (_) {
+            // ignore
+        }
+
         const safeReply = async (payload) => {
             try {
                 if (interaction.deferred || interaction.replied) return await interaction.followUp(payload);
@@ -437,59 +447,6 @@ module.exports = {
             if (interaction.customId === 'close_ticket') {
                 await safeReply({ content: '🔒 Closing...' });
                 return setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
-            }
-
-            // --- 🛡️ SMART MODERATION BUTTONS ---
-            if (interaction.customId.startsWith('mod_') || interaction.customId.startsWith('dash_')) {
-                if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) return safeReply({ content: '❌ No permission.', ephemeral: true });
-                const parts = interaction.customId.split('_');
-                const action = parts[1];
-
-                try {
-                    if (interaction.customId.startsWith('mod_')) {
-                        const userId = parts[2];
-                        const caseId = parts[3];
-                        if (action === 'dismiss') {
-                            const modCase = await ModLog.findOne({ guildId: interaction.guildId, caseId });
-                            if (modCase && modCase.content) {
-                                for (const word of modCase.content.split(/\s+/)) await recordDismissal(interaction.guildId, word);
-                                modCase.status = 'Dismissed';
-                                await modCase.save();
-                            }
-                            const embed = EmbedBuilder.from(interaction.message.embeds[0]).setColor('#2F3136').setFooter({ text: `Case #${caseId} | DISMISSED BY ${interaction.user.username}` });
-                            return safeUpdate({ embeds: [embed], components: [] });
-                        }
-                        const target = await interaction.guild.members.fetch(userId).catch(() => null);
-                        if (!target) return safeReply({ content: '❌ User left.', ephemeral: true });
-                        switch (action) {
-                            case 'warn': await target.send('⚠️ Warning: Severe profanity detected.').catch(() => { }); break;
-                            case 'timeout': if (target.moderatable) await target.timeout(10 * 60 * 1000); break;
-                            case 'ban': if (target.bannable) await target.ban({ reason: 'Smart Mod' }); break;
-                        }
-                        return safeReply({ content: `✅ Action: ${action} applied.`, ephemeral: true });
-                    }
-
-                    if (interaction.customId.startsWith('dash_')) {
-                        let settings = await ModSettings.findOne({ guildId: interaction.guildId }) || new ModSettings({ guildId: interaction.guildId });
-                        
-                        // dash_toggle_filter
-                        // dash_toggle_learning
-                        // dash_sensitivity_up
-                        // dash_sensitivity_down
-                        
-                        if (action === 'toggle') {
-                            if (parts[2] === 'filter') settings.enabled = !settings.enabled;
-                            if (parts[2] === 'learning') settings.learningMode = !settings.learningMode;
-                        } else if (action === 'sensitivity') {
-                            if (parts[2] === 'up') settings.sensitivity = Math.min(5, (settings.sensitivity || 3) + 1);
-                            if (parts[2] === 'down') settings.sensitivity = Math.max(1, (settings.sensitivity || 3) - 1);
-                        }
-                        
-                        await settings.save();
-                        const dashboard = await generateDashboard(interaction.guildId);
-                        return safeUpdate(dashboard);
-                    }
-                } catch (e) { return safeReply({ content: `❌ ${e.message}`, ephemeral: true }); }
             }
         }
 
