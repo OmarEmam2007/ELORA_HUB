@@ -1,5 +1,4 @@
 const { PermissionFlagsBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const { exec: ytDlpExec } = require('yt-dlp-exec');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
