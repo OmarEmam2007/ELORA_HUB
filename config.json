@@ -1,0 +1,43 @@
+{
+    "prefix": "!",
+    "clientId": "",
+    "guildId": "1461451253606383810",
+    "ownerId": "1085496418745200730",
+    "astrayRoleId": "1461769279195058342",
+    "logChannelId": "1462010183277346906",
+    "welcomeChannelId": "1461484367728869397",
+    "goodbyeChannelId": "1462555435742793910",
+    "colors": {
+        "success": 65280,
+        "error": 16711680,
+        "warning": 16753920,
+        "info": 39423,
+        "primary": 3092790
+    },
+    "lifeSim": {
+        "roles": {
+            "dynastyHead": "1467897663914770695",
+            "dynastyMember": "1467898476124831888",
+            "economicPartner": "1467898781948186832",
+            "highNetWorth": "1467898876726874207",
+            "taxDelinquent": "1467899085859192887",
+            "cityCouncil": "1467899201818988544"
+        },
+        "channels": {
+            "cityHall": "1467899763700793506",
+            "jobCenter": "1467899826720079912",
+            "propertyMarket": "1467899930843545918",
+            "vehicleMarket": "1467900087102345226",
+            "dynastyHub": "1467900586308669571",
+            "dynastyAds": "1467900703463702765",
+            "tradeDistrict": "1467900883206541364",
+            "lifeSimCommands": "1467900960461426832",
+            "lifeSimLogs": "1467901255568588974",
+            "lifeSimConfig": "1467901328377512189"
+        },
+        "emojis": {
+            "bank": "1467905514779316305",
+            "house": "1467905493547880663"
+        }
+    }
+}

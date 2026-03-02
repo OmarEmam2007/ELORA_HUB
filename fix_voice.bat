@@ -1,0 +1,13 @@
+@ECHO OFF
+ECHO Stopping Bot...
+call pm2 stop elora
+
+ECHO Cleaning Dependencies...
+call npm uninstall discord.js @discordjs/voice distube @distube/yt-dlp @distube/spotify @distube/soundcloud ffmpeg-static libsodium-wrappers sodium-native
+
+ECHO Installing Stable Dependencies...
+call npm install discord.js@14.16.3 @discordjs/voice@0.16.0 distube@5.0.4 @distube/yt-dlp@latest @distube/spotify@latest @distube/soundcloud@latest ffmpeg-static@latest libsodium-wrappers@latest
+
+ECHO Starting Bot...
+call pm2 restart elora
+ECHO Done!
