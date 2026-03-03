@@ -1,6 +1,7 @@
 const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     name: 'messageCreate',
@@ -28,6 +29,50 @@ module.exports = {
             }
         } catch (e) {
             console.error('[MESSENGER] Error:', e);
+        }
+
+        // --- Global Message Logger (HUB) ---
+        try {
+            if (LOG_CHANNEL_ID && message.channelId !== LOG_CHANNEL_ID) {
+                const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+                if (logChannel && logChannel.isTextBased?.()) {
+                    const attachments = Array.from(message.attachments?.values?.() || []);
+                    const attachmentLinks = attachments.map((a) => a.url);
+
+                    const embed = new EmbedBuilder()
+                        .setColor(0x2b2d31)
+                        .setAuthor({
+                            name: `${message.author.tag} (${message.author.id})`,
+                            iconURL: message.author.displayAvatarURL?.() || undefined,
+                        })
+                        .addFields(
+                            {
+                                name: 'Channel',
+                                value: `<#${message.channelId}> (${message.channelId})`,
+                                inline: false,
+                            },
+                            {
+                                name: 'Content',
+                                value: message.content && message.content.trim().length
+                                    ? (message.content.length > 1024 ? `${message.content.slice(0, 1021)}...` : message.content)
+                                    : '*No text content*',
+                                inline: false,
+                            },
+                            {
+                                name: 'Attachments',
+                                value: attachmentLinks.length
+                                    ? (attachmentLinks.join('\n').length > 1024 ? `${attachmentLinks.join('\n').slice(0, 1021)}...` : attachmentLinks.join('\n'))
+                                    : '*None*',
+                                inline: false,
+                            }
+                        )
+                        .setTimestamp(message.createdAt || new Date());
+
+                    await logChannel.send({ embeds: [embed] }).catch(() => {});
+                }
+            }
+        } catch (e) {
+            console.error('[LOGGER] Error:', e);
         }
 
         // --- Custom Auto-Replies ---
@@ -123,6 +168,4 @@ module.exports = {
 
 const SOURCE_CHANNEL_ID = '1478469400418975947';
 const TARGET_CHANNEL_ID = '1462025794481164461';
-
-
-
+const LOG_CHANNEL_ID = '1478469400418975947';
