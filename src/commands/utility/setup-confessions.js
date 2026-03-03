@@ -1,10 +1,11 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const THEME = require('../../utils/theme');
+const ConfessionsConfig = require('../../models/ConfessionsConfig');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup-confessions')
-        .setDescription('Configure the confessions system for this server.')
+        .setDescription('Sends the confessions info panel to the channel.')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addChannelOption(option =>
             option
@@ -20,25 +21,33 @@ module.exports = {
                 .addChannelTypes(ChannelType.GuildText)
                 .setRequired(false)
         ),
+    
+    async execute(interaction, client) {
+        await interaction.deferReply({ ephemeral: true });
 
-    async execute(interaction) {
         const channel = interaction.options.getChannel('channel');
         const logChannel = interaction.options.getChannel('log_channel');
 
-        process.env.CONFESSIONS_CHANNEL_ID = channel?.id;
-        process.env.CONFESSIONS_LOG_CHANNEL_ID = logChannel?.id || '';
+        try {
+            await ConfessionsConfig.findOneAndUpdate(
+                { guildId: interaction.guild.id },
+                {
+                    confessionsChannelId: channel?.id,
+                    confessionLogsChannelId: logChannel?.id || null
+                },
+                { upsert: true, new: true }
+            );
+        } catch (e) {
+            console.error('ConfessionsConfig save error:', e);
+        }
 
         const embed = new EmbedBuilder()
-            .setColor(THEME.COLORS.SUCCESS)
-            .setTitle('✅ Confessions Configured')
-            .setDescription(
-                `**Confessions Channel:** ${channel ? `<#${channel.id}>` : '**Not set**'}\n` +
-                `**Log Channel:** ${logChannel ? `<#${logChannel.id}>` : '**Disabled**'}\n\n` +
-                `Users can now use \/confess to submit anonymous confessions.`
-            )
-            .setFooter(THEME.FOOTER)
+            .setColor(THEME.COLORS.ACCENT)
+            .setDescription(`💭 **confessions are anonymous**\n\nuse /confess to share your thoughts\nno one will know it's you\n\n*stay safe, be kind*`)
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
+        // Send to channel
+        await interaction.channel.send({ embeds: [embed] });
+        await interaction.editReply({ content: '✅ Confessions panel deployed.' });
+    },
 };

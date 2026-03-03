@@ -7,10 +7,27 @@ module.exports = {
         .setDescription('Scanning target charisma levels.')
         .addUserOption(option => option.setName('target').setDescription('User to scan')),
 
-    async execute(interaction, client) {
-        const user = interaction.user;
-        const targetUser = interaction.options.getUser('target') || user;
+    async execute(interaction, client, args) {
+        // --- 1. Hybrid Input ---
+        const isSlash = interaction.isChatInputCommand?.();
+        const user = isSlash ? interaction.user : interaction.author;
+        let targetUser;
 
+        if (isSlash) {
+            targetUser = interaction.options.getUser('target') || user;
+        } else {
+            // !rizz [@User]
+            const targetId = args[0]?.replace(/[<@!>]/g, '');
+            if (targetId) {
+                try {
+                    targetUser = await client.users.fetch(targetId);
+                } catch { targetUser = user; }
+            } else {
+                targetUser = user;
+            }
+        }
+
+        // --- 2. Calculation ---
         const rng = Math.floor(Math.random() * 101);
         let title, desc, color;
 
@@ -19,22 +36,31 @@ module.exports = {
         else if (rng > 40) { title = '😐 Mid Rizz'; desc = 'Just average.'; color = THEME.COLORS.WARNING; }
         else { title = '💀 Negative Rizz'; desc = 'Please stop talking.'; color = THEME.COLORS.ERROR; }
 
+        // --- 3. Animation ---
         const frames = ['📡 Scanning Pheromones...', '🧬 Analyzing DNA...', '💘 Calculating Appeal...'];
+        let msg;
         const initEmbed = new EmbedBuilder().setColor(THEME.COLORS.ACCENT).setDescription(`${frames[0]}`);
 
-        await interaction.reply({ embeds: [initEmbed] });
+        if (isSlash) {
+            await interaction.reply({ embeds: [initEmbed] });
+            msg = interaction;
+        } else {
+            msg = await interaction.reply({ embeds: [initEmbed] });
+        }
 
         for (let i = 1; i < frames.length; i++) {
             await new Promise(r => setTimeout(r, 600));
             const embed = new EmbedBuilder().setColor(THEME.COLORS.ACCENT).setDescription(`${frames[i]}`);
-            await interaction.editReply({ embeds: [embed] });
+            if (isSlash) await interaction.editReply({ embeds: [embed] });
+            else await msg.edit({ embeds: [embed] });
         }
 
+        // --- 4. Result ---
         const resultEmbed = new EmbedBuilder()
             .setColor(color)
-            .setAuthor({
-                name: title,
-                iconURL: targetUser.displayAvatarURL({ dynamic: true })
+            .setAuthor({ 
+                name: title, 
+                iconURL: targetUser.displayAvatarURL({ dynamic: true }) 
             })
             .setDescription(
                 `**${targetUser.username}** is **${rng}%** Rizzed up\n\n${desc}`
@@ -42,6 +68,7 @@ module.exports = {
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
             .setTimestamp();
 
-        await interaction.editReply({ embeds: [resultEmbed] });
+        if (isSlash) await interaction.editReply({ embeds: [resultEmbed] });
+        else await msg.edit({ embeds: [resultEmbed] });
     },
 };

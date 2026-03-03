@@ -4,6 +4,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, ActivityType, Collection } = require('discord.js');
 const { loadCommands } = require('./handlers/commandHandler');
+const { loadPrefixCommands } = require('./handlers/prefixCommandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
 
 const client = new Client({
@@ -45,6 +46,7 @@ client.once('ready', () => {
         }
 
         await loadCommands(client);
+        await loadPrefixCommands(client);
         console.log('✅ [ELORA HUB] Loaded: Utility Commands');
         console.log('✅ [ELORA HUB] Loaded: Confessions System');
         await loadEvents(client);
