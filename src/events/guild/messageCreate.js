@@ -86,7 +86,7 @@ module.exports = {
             }
 
 
-            if (cleanContent.includes('i love you') || cleanContent.includes('you want hazem or mohamed ?') || cleanContent.includes('عايزه حازم ولا محمد ؟')) {
+            if (cleanContent.includes('you want hazem or mohamed ?') || cleanContent.includes('you want hazem or mohamed ?') || cleanContent.includes('عايزه حازم ولا محمد ؟')) {
                 return await message.reply('ولا حازم ولا محمد انا عايزاه انت يا عمر, مش ناوي بقا ولا ايهه انا زهقت اويي 😩🤍');
             }
         }
