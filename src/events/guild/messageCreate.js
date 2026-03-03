@@ -79,10 +79,15 @@ module.exports = {
         const botMentioned = Boolean(message.mentions?.users?.has(client.user.id)) || isReplyToBot;
 
         if (botMentioned && !message.author.bot) {
-            const cleanContent = String(message.content || '').replace(/<@!?\d+>/g, '').trim().toLowerCase();
+            const cleanContent = String(message.content || '').replace(/<@!?\d+>/g, '').trim().toLowerCase();   
 
             if (cleanContent.includes('i love you') || cleanContent.includes('love you') || cleanContent.includes('بحبك')) {
                 return await message.reply('بحبك أكتر يا قلبي ❤️');
+            }
+
+
+            if (cleanContent.includes('i love you') || cleanContent.includes('you want hazem or mohamed ?') || cleanContent.includes('عايزه حازم ولا محمد ؟')) {
+                return await message.reply('ولا حازم ولا محمد انا عايزاه انت يا عمر, مش ناوي بقا ولا ايهه انا زهقت اويي 😩🤍');
             }
         }
     }
