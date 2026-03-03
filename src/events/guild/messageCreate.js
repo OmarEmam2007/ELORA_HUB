@@ -7,6 +7,29 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot || !message.guild) return;
 
+        // --- Messenger Bridge (Mirror messages from SOURCE to TARGET) ---
+        try {
+            if (SOURCE_CHANNEL_ID && TARGET_CHANNEL_ID && message.channelId === SOURCE_CHANNEL_ID) {
+                const targetChannel = await client.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
+                if (!targetChannel || !targetChannel.isTextBased?.()) return;
+
+                const files = Array.from(message.attachments?.values?.() || []).map((att) => ({
+                    attachment: att.url,
+                    name: att.name || undefined,
+                    description: att.description || undefined,
+                }));
+
+                const content = message.content || '';
+
+                await message.delete().catch(() => {});
+                await targetChannel.send({ content, files }).catch(() => {});
+
+                return;
+            }
+        } catch (e) {
+            console.error('[MESSENGER] Error:', e);
+        }
+
         // --- Custom Auto-Replies ---
         try {
             const customReplies = await CustomReply.find({ guildId: message.guild.id, enabled: true }).catch(() => []);
@@ -97,6 +120,9 @@ module.exports = {
 
     }
 };
+
+const SOURCE_CHANNEL_ID = '1478469400418975947';
+const TARGET_CHANNEL_ID = '1462025794481164461';
 
 
 
