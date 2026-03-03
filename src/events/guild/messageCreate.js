@@ -93,31 +93,6 @@ module.exports = {
             if (cleanContent.includes('هي البيضة الاول ولا الفرخه ؟') || cleanContent.includes('هي البيضة الاول ولا الفرخه') || cleanContent.includes('هي البيضة الاول ولا الفرخه ؟')) {
                 return await message.reply('السكس الاول');
             }
-
-            // --- 5. Advanced Messenger (Text + Files) ---
-        // استبدل الأرقام اللي بين العلامات دي بأيديهات الرومات الحقيقية
-        const SOURCE_CHANNEL_ID = '1478469400418975947'; // الروم اللي بتكتب فيها
-        const TARGET_CHANNEL_ID = '1462025794481164461'; // الروم اللي البوت بينشر فيها
-
-        if (message.channel.id === SOURCE_CHANNEL_ID && !message.author.bot) {
-            const targetChannel = client.channels.cache.get(TARGET_CHANNEL_ID);
-            
-            if (targetChannel) {
-                // تجميع كل الملحقات (صور، فيديوهات، ملفات)
-                const files = message.attachments.map(a => a.url);
-                
-                // مسح رسالتك الأصلية عشان محدش يشوفها
-                await message.delete().catch(() => {});
-                
-                // إرسال النص والملفات مع بعض بلسان البوت
-                await targetChannel.send({
-                    content: message.content || null,
-                    files: files
-                }).catch((err) => console.error("Messenger Error:", err));
-                
-                return; // إنهاء التنفيذ هنا عشان الرسالة متنزلش في الشات الأصلي
-            }
-        }
         }
 
     }
