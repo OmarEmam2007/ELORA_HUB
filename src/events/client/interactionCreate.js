@@ -425,6 +425,7 @@ module.exports = {
                 const STAFF_ROLE_IDS = [
                     '1461766723274412126'
                 ];
+                const MODERATOR_USER_ID = '629373738772594728';
                 const parentChannelId = '1461997428218794099';
                 const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
                 if (!parentChannel || !parentChannel.isTextBased?.()) {
@@ -445,17 +446,31 @@ module.exports = {
                         reason: `Ticket created by ${interaction.user.tag} (${interaction.user.id})`
                     });
 
-                    await thread.members.add(interaction.user.id).catch(() => { });
+                    const memberAdds = [
+                        thread.members.add(interaction.user.id).catch(() => { }),
+                        thread.members.add(MODERATOR_USER_ID).catch(() => { })
+                    ];
+
                     if (client?.config?.ownerId) {
-                        await thread.members.add(client.config.ownerId).catch(() => { });
+                        memberAdds.push(thread.members.add(client.config.ownerId).catch(() => { }));
                     }
 
                     for (const roleId of STAFF_ROLE_IDS) {
                         const role = interaction.guild.roles.cache.get(roleId);
                         if (!role) continue;
                         for (const [, m] of role.members) {
-                            await thread.members.add(m.id).catch(() => { });
+                            memberAdds.push(thread.members.add(m.id).catch(() => { }));
                         }
+                    }
+
+                    await Promise.all(memberAdds);
+
+                    try {
+                        if (client?.user?.id) {
+                            await thread.members.add(client.user.id).catch(() => { });
+                        }
+                    } catch (_) {
+                        // ignore
                     }
 
                     // Prevent the ticket opener from inviting others (best-effort; threads have limited per-user overrides)
