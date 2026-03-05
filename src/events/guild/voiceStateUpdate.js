@@ -12,10 +12,50 @@ module.exports = {
             const member = newState.member || oldState.member;
             if (!member || member.user?.bot) return;
 
+            const MASTER_CHANNEL_ID = '1479241475845001381';
+            const TEMP_PREFIX = '🔊 | ';
+
             const userId = member.id;
             const guildId = guild.id;
 
             const now = Date.now();
+
+            // --- Dynamic Voice (temp channels) ---
+            try {
+                const oldCh = oldState.channel;
+                const newCh = newState.channel;
+
+                if (oldCh?.type === 2 && oldCh?.name?.startsWith?.(TEMP_PREFIX) && oldCh.members?.size === 0) {
+                    await oldCh.delete('Dynamic voice: temp channel empty').catch(() => { });
+                }
+
+                if (newCh?.id === MASTER_CHANNEL_ID && oldCh?.id !== MASTER_CHANNEL_ID) {
+                    const parentId = newCh.parentId || null;
+
+                    const created = await guild.channels.create({
+                        name: `${TEMP_PREFIX}${member.user.username}`,
+                        type: 2,
+                        parent: parentId,
+                        reason: `Dynamic voice created for ${member.user.tag} (${member.id})`,
+                        permissionOverwrites: [
+                            {
+                                id: guild.roles.everyone.id,
+                                deny: ['ManageChannels', 'MoveMembers']
+                            },
+                            {
+                                id: member.id,
+                                allow: ['ManageChannels', 'MoveMembers']
+                            }
+                        ]
+                    }).catch(() => null);
+
+                    if (created) {
+                        await newState.setChannel(created).catch(() => { });
+                    }
+                }
+            } catch (_) {
+                // Best-effort
+            }
 
             // --- Advanced Voice Logs (join/leave/move) ---
             try {
