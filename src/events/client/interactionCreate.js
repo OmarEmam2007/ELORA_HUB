@@ -422,6 +422,9 @@ module.exports = {
             // --- Ticket Buttons ---
             if (interaction.customId === 'create_ticket') {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const STAFF_ROLE_IDS = [
+                    '1461766723274412126'
+                ];
                 const parentChannelId = '1461997428218794099';
                 const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
                 if (!parentChannel || !parentChannel.isTextBased?.()) {
@@ -447,15 +450,23 @@ module.exports = {
                         await thread.members.add(client.config.ownerId).catch(() => { });
                     }
 
-                    const STAFF_ROLE_IDS = [
-                        '1461766723274412126'
-                    ];
                     for (const roleId of STAFF_ROLE_IDS) {
                         const role = interaction.guild.roles.cache.get(roleId);
                         if (!role) continue;
                         for (const [, m] of role.members) {
                             await thread.members.add(m.id).catch(() => { });
                         }
+                    }
+
+                    // Prevent the ticket opener from inviting others (best-effort; threads have limited per-user overrides)
+                    try {
+                        if (typeof thread.permissionOverwrites?.edit === 'function') {
+                            await thread.permissionOverwrites.edit(interaction.user.id, {
+                                CreateInstantInvite: false
+                            }).catch(() => { });
+                        }
+                    } catch (_) {
+                        // ignore
                     }
 
                     const embed = new EmbedBuilder().setTitle('📩 Ticket Opened').setDescription('Staff have been notified.').setColor('#5865F2');
@@ -467,15 +478,17 @@ module.exports = {
             }
 
             if (interaction.customId === 'close_ticket') {
+                const STAFF_ROLE_IDS = [
+                    '1461766723274412126'
+                ];
+                const isStaff = Boolean(interaction.member?.roles?.cache?.some(r => STAFF_ROLE_IDS.includes(r.id)));
+                if (!isStaff) {
+                    return safeReply({ content: 'Only Staff can close this ticket.', ephemeral: true });
+                }
+
                 await safeReply({ content: '🔒 Closing...' });
                 if (interaction.channel?.isThread?.()) {
-                    try {
-                        await interaction.channel.setLocked(true).catch(() => { });
-                        await interaction.channel.setArchived(true).catch(() => { });
-                    } catch (_) {
-                        // ignore
-                    }
-                    return;
+                    return interaction.channel.delete().catch(() => { });
                 }
                 return setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
             }
