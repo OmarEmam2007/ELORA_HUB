@@ -439,6 +439,24 @@ module.exports = {
                 try {
                     const threadName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-_]/g, '');
 
+                    // Ensure the ticket opener can write in threads under this parent channel
+                    // (Thread send permissions are inherited from the parent channel)
+                    try {
+                        if (typeof parentChannel.permissionOverwrites?.edit === 'function') {
+                            await parentChannel.permissionOverwrites.edit(interaction.user.id, {
+                                SendMessagesInThreads: true,
+                                ViewChannel: true
+                            }).catch(() => { });
+
+                            await parentChannel.permissionOverwrites.edit(MODERATOR_USER_ID, {
+                                SendMessagesInThreads: true,
+                                ViewChannel: true
+                            }).catch(() => { });
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+
                     const thread = await parentChannel.threads.create({
                         name: threadName,
                         autoArchiveDuration: 10080,
@@ -447,19 +465,19 @@ module.exports = {
                     });
 
                     const memberAdds = [
-                        thread.members.add(interaction.user.id).catch(() => { }),
-                        thread.members.add(MODERATOR_USER_ID).catch(() => { })
+                        thread.members.add(interaction.user.id).catch((e) => { console.error('ticket: failed to add opener to thread', e); }),
+                        thread.members.add(MODERATOR_USER_ID).catch((e) => { console.error('ticket: failed to add moderator to thread', e); })
                     ];
 
                     if (client?.config?.ownerId) {
-                        memberAdds.push(thread.members.add(client.config.ownerId).catch(() => { }));
+                        memberAdds.push(thread.members.add(client.config.ownerId).catch((e) => { console.error('ticket: failed to add owner to thread', e); }));
                     }
 
                     for (const roleId of STAFF_ROLE_IDS) {
                         const role = interaction.guild.roles.cache.get(roleId);
                         if (!role) continue;
                         for (const [, m] of role.members) {
-                            memberAdds.push(thread.members.add(m.id).catch(() => { }));
+                            memberAdds.push(thread.members.add(m.id).catch((e) => { console.error('ticket: failed to add staff member to thread', e); }));
                         }
                     }
 
