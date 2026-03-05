@@ -9,6 +9,30 @@ module.exports = {
         try {
             console.log(`👤 New Hero Detected: ${member.user.tag}`);
 
+            // --- Auto-Mention Welcome Notification (Verification / Role Guide) ---
+            try {
+                const notifyChannelId = '1479118277342007442';
+                if (notifyChannelId) {
+                    const notifyChannel = await client.channels.fetch(notifyChannelId).catch(() => null);
+                    if (notifyChannel && notifyChannel.isTextBased?.()) {
+                        const guideEmbed = new EmbedBuilder()
+                            .setColor('#2B2D31')
+                            .setDescription(
+                                `Welcome to E L O R A, ${member}! ✦\n\n` +
+                                `To get full access to the server, please follow these steps:\n\n` +
+                                `1️⃣ Verify your account in: <#1462014452382830786>\n\n` +
+                                `2️⃣ Pick your age and gender roles in: <#1461484367728869397>\n\n` +
+                                `We're glad to have you here! ✨`
+                            )
+                            .setTimestamp();
+
+                        await notifyChannel.send({ content: `${member}`, embeds: [guideEmbed] }).catch(() => { });
+                    }
+                }
+            } catch (e) {
+                console.error('[WELCOME NOTIFY] Error:', e);
+            }
+
             // --- 🔢 Member Count Voice Channel Update (best-effort) ---
             try {
                 if (typeof client.queueMemberCountUpdate === 'function') {
