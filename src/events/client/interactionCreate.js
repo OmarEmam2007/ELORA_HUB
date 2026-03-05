@@ -422,30 +422,61 @@ module.exports = {
             // --- Ticket Buttons ---
             if (interaction.customId === 'create_ticket') {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
-                const existing = interaction.guild.channels.cache.find(c => c.topic === interaction.user.id);
+                const parentChannelId = '1461997428218794099';
+                const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
+                if (!parentChannel || !parentChannel.isTextBased?.()) {
+                    return safeEdit({ content: '❌ Parent ticket channel not found.' });
+                }
+
+                const existing = parentChannel.threads?.cache?.find(t => t.ownerId === client.user.id && t.name?.includes(interaction.user.username.toLowerCase()))
+                    || parentChannel.threads?.cache?.find(t => t.name === `ticket-${interaction.user.username}`);
                 if (existing) return safeEdit({ content: `❌ Already open: ${existing}` });
 
                 try {
-                    const channel = await interaction.guild.channels.create({
-                        name: `ticket-${interaction.user.username}`,
-                        type: ChannelType.GuildText,
-                        permissionOverwrites: [
-                            { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                            { id: client.config.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                        ],
-                        topic: interaction.user.id
+                    const threadName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+
+                    const thread = await parentChannel.threads.create({
+                        name: threadName,
+                        autoArchiveDuration: 10080,
+                        type: ChannelType.GuildPrivateThread,
+                        reason: `Ticket created by ${interaction.user.tag} (${interaction.user.id})`
                     });
+
+                    await thread.members.add(interaction.user.id).catch(() => { });
+                    if (client?.config?.ownerId) {
+                        await thread.members.add(client.config.ownerId).catch(() => { });
+                    }
+
+                    const STAFF_ROLE_IDS = [
+                        '1461766723274412126'
+                    ];
+                    for (const roleId of STAFF_ROLE_IDS) {
+                        const role = interaction.guild.roles.cache.get(roleId);
+                        if (!role) continue;
+                        for (const [, m] of role.members) {
+                            await thread.members.add(m.id).catch(() => { });
+                        }
+                    }
 
                     const embed = new EmbedBuilder().setTitle('📩 Ticket Opened').setDescription('Staff have been notified.').setColor('#5865F2');
                     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger));
-                    await channel.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
-                    return safeEdit({ content: `✅ Ticket: ${channel}` });
+                    await thread.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+
+                    return safeEdit({ content: `✅ Ticket: <#${thread.id}>` });
                 } catch (e) { return safeEdit({ content: '❌ Creation failed.' }); }
             }
 
             if (interaction.customId === 'close_ticket') {
                 await safeReply({ content: '🔒 Closing...' });
+                if (interaction.channel?.isThread?.()) {
+                    try {
+                        await interaction.channel.setLocked(true).catch(() => { });
+                        await interaction.channel.setArchived(true).catch(() => { });
+                    } catch (_) {
+                        // ignore
+                    }
+                    return;
+                }
                 return setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
             }
         }
