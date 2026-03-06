@@ -21,11 +21,7 @@ module.exports = {
 
                 try {
                     if (!message.hasThread) {
-                        await message.startThread({
-                            name: 'Comments',
-                            autoArchiveDuration: 10080,
-                            reason: 'Media-only: auto thread for discussion'
-                        }).catch(() => { });
+                        await message.startThread({ name: 'Discussion' }).catch(() => { });
                     }
                 } catch (_) {
                     // ignore
