@@ -8,6 +8,35 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot || !message.guild) return;
 
+        // --- Media Only Channel ---
+        try {
+            if (message.channelId === MEDIA_ONLY_CHANNEL_ID) {
+                const hasAttachments = Boolean(message.attachments && message.attachments.size > 0);
+                if (!hasAttachments) {
+                    await message.delete().catch(() => { });
+                    return;
+                }
+
+                await message.react(MEDIA_REACTION_EMOJI).catch(() => { });
+
+                try {
+                    if (!message.hasThread) {
+                        await message.startThread({
+                            name: 'Comments',
+                            autoArchiveDuration: 10080,
+                            reason: 'Media-only: auto thread for discussion'
+                        }).catch(() => { });
+                    }
+                } catch (_) {
+                    // ignore
+                }
+
+                return;
+            }
+        } catch (e) {
+            console.error('[MEDIA ONLY] Error:', e);
+        }
+
         // --- Messenger Bridge (Mirror messages from SOURCE to TARGET) ---
         try {
             if (SOURCE_CHANNEL_ID && TARGET_CHANNEL_ID && message.channelId === SOURCE_CHANNEL_ID) {
@@ -169,3 +198,5 @@ module.exports = {
 const SOURCE_CHANNEL_ID = '1478469400418975947';
 const TARGET_CHANNEL_ID = '1462025794481164461';
 const LOG_CHANNEL_ID = '1478469400418975947';
+const MEDIA_ONLY_CHANNEL_ID = '1461761296218456074';
+const MEDIA_REACTION_EMOJI = '<:_:1479604142367572069>';
