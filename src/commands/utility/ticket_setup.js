@@ -42,12 +42,8 @@ module.exports = {
             );
 
         const row = new ActionRowBuilder().addComponents(menu);
-
-        const menuEmbed = new EmbedBuilder()
-            .setColor(client?.config?.colors?.primary || 0x2b2d31);
-
         await channel.send({ content: ' ', files: [banner] });
-        await channel.send({ embeds: [menuEmbed], components: [row] });
+        await channel.send({ components: [row] });
         await interaction.reply({ content: `✅ Ticket panel sent to ${channel}`, ephemeral: true });
     }
 };
