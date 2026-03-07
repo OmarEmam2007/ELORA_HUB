@@ -527,6 +527,73 @@ module.exports = {
             }
         }
 
+        if (interaction.isStringSelectMenu?.() && interaction.customId === 'ticket_select') {
+            await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+            const STAFF_ROLE_IDS = [
+                '1461766723274412126'
+            ];
+
+            const value = interaction.values?.[0];
+            const valid = new Set(['server_problem', 'partnerships', 'social_problem', 'other']);
+            if (!valid.has(value)) {
+                return safeEdit({ content: '❌ Invalid selection.' });
+            }
+
+            const baseName = String(value).toLowerCase().replace(/[^a-z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            const userSlug = String(interaction.user.username || 'user').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 16) || interaction.user.id;
+            const channelName = `${baseName}-${userSlug}`.slice(0, 100);
+
+            const existing = interaction.guild.channels.cache.find(
+                (c) => c?.type === ChannelType.GuildText && c?.name === channelName
+            );
+            if (existing) {
+                return safeEdit({ content: `❌ You already have an open ticket: ${existing}` });
+            }
+
+            const parentChannelId = '1461997428218794099';
+            const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
+            const parentId = parentChannel?.parentId || null;
+
+            const overwrites = [
+                {
+                    id: interaction.guild.roles.everyone.id,
+                    deny: [PermissionFlagsBits.ViewChannel]
+                },
+                {
+                    id: interaction.user.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                }
+            ];
+
+            for (const roleId of STAFF_ROLE_IDS) {
+                overwrites.push({
+                    id: roleId,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                });
+            }
+
+            const created = await interaction.guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                parent: parentId,
+                topic: `Ticket: ${value} • User: ${interaction.user.tag} (${interaction.user.id})`,
+                permissionOverwrites: overwrites,
+                reason: `Ticket created by ${interaction.user.tag} (${interaction.user.id})`
+            }).catch(() => null);
+
+            if (!created) {
+                return safeEdit({ content: '❌ Failed to create ticket channel. Check bot permissions.' });
+            }
+
+            await safeEdit({ content: `✅ Ticket created: ${created}` });
+            try {
+                await created.send({ content: `${interaction.user}` }).catch(() => { });
+            } catch (_) {
+                // ignore
+            }
+        }
+
         // --- 🧠 CUSTOM REPLIES MODAL SUBMIT ---
         if (interaction.isModalSubmit() && interaction.customId === 'cr_modal_add') {
             const OWNER_ROLE_ID = '1461766723274412126';
