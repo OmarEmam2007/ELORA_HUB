@@ -156,14 +156,14 @@ module.exports = {
             };
 
             // 4. Load the Local Background Art
-            const welcomeFile = new AttachmentBuilder(path.join(__dirname, '../../assets/welcome-bg.jpg'));
+            const welcomeFile = new AttachmentBuilder(path.join(__dirname, '../../assets/1.png'));
 
             // 5. Construct the Legendary Embed
             const embed = new EmbedBuilder()
                 .setTitle(`👁️ ${loreData.title} Has Awakened`)
                 .setDescription(`**Member:** ${member}\n\n"${loreData.lore}"`)
                 .setThumbnail(avatarUrl) // Added member profile picture
-                .setImage('attachment://welcome-bg.jpg')
+                .setImage('attachment://1.png')
                 .setColor(member.displayHexColor !== '#000000' ? member.displayHexColor : '#00ffd5')
                 .setFooter({ text: 'Sovereign Nexus • Sentient Entry System' })
                 .setTimestamp();
