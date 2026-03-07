@@ -525,6 +525,23 @@ module.exports = {
                 }
                 return setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
             }
+
+            if (interaction.customId === 'ticket_close') {
+                const allowed = new Set(['1085496418745200730', '629373738772594728']);
+                if (!allowed.has(interaction.user.id)) {
+                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
+                }
+
+                await safeReply({ content: '🔒 Closing...' , ephemeral: true });
+                try {
+                    if (interaction.channel && interaction.channel.deletable) {
+                        return interaction.channel.delete().catch(() => { });
+                    }
+                } catch (_) {
+                    // ignore
+                }
+                return;
+            }
         }
 
         if (interaction.isStringSelectMenu?.() && interaction.customId === 'ticket_select') {
@@ -588,7 +605,25 @@ module.exports = {
 
             await safeEdit({ content: `✅ Ticket created: ${created}` });
             try {
-                await created.send({ content: `${interaction.user}` }).catch(() => { });
+                const toSmallCaps = (input) => {
+                    const map = {
+                        a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                        n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+                    };
+                    return String(input || '').split('').map((ch) => {
+                        const lower = ch.toLowerCase();
+                        return map[lower] || ch;
+                    }).join('');
+                };
+
+                const closeRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('ticket_close')
+                        .setLabel(toSmallCaps('CLOSE TICKET'))
+                        .setStyle(ButtonStyle.Danger)
+                );
+
+                await created.send({ content: `${interaction.user}`, components: [closeRow] }).catch(() => { });
             } catch (_) {
                 // ignore
             }
