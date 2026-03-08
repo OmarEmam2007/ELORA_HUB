@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "Elora Swarm - Multi-bot system with TTS Master-Slave capabilities",
   "dependencies": {
+    "@discordjs/voice": "^0.19.0",
     "discord.js": "^14.16.3",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

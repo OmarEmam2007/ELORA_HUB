@@ -6,13 +6,28 @@ module.exports = {
 
         // --- 🔊 Persistent Voice Connection (best-effort) ---
         try {
+            const { ChannelType } = require('discord.js');
             const { joinVoiceChannel, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
             const TARGET_VOICE_CHANNEL_ID = '1479234725288869993';
 
             const ensureVoice = async () => {
                 try {
                     const channel = await client.channels.fetch(TARGET_VOICE_CHANNEL_ID).catch(() => null);
-                    if (!channel || !channel.guild || !channel.isVoiceBased?.()) return;
+                    if (!channel) {
+                        console.log(`[VOICE] Channel not found: ${TARGET_VOICE_CHANNEL_ID}`);
+                        return;
+                    }
+
+                    const isVoiceLike = channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice;
+                    if (!isVoiceLike) {
+                        console.log(`[VOICE] Channel is not voice/stage. id=${channel.id} type=${channel.type}`);
+                        return;
+                    }
+
+                    if (!channel.guild) {
+                        console.log(`[VOICE] No guild for channel: ${channel.id}`);
+                        return;
+                    }
 
                     const connection = joinVoiceChannel({
                         channelId: channel.id,
@@ -21,24 +36,29 @@ module.exports = {
                         selfDeaf: true,
                     });
 
+                    console.log(`[VOICE] Joining voice: ${channel.guild.name} / ${channel.name} (${channel.id})`);
+
                     connection.on(VoiceConnectionStatus.Disconnected, async () => {
+                        console.log('[VOICE] Disconnected. Retrying...');
                         setTimeout(() => ensureVoice().catch(() => { }), 3_000);
                     });
 
                     connection.on(VoiceConnectionStatus.Destroyed, async () => {
+                        console.log('[VOICE] Destroyed. Retrying...');
                         setTimeout(() => ensureVoice().catch(() => { }), 3_000);
                     });
 
-                    await entersState(connection, VoiceConnectionStatus.Ready, 30_000).catch(() => { });
+                    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+                    console.log('[VOICE] Ready.');
                 } catch (_) {
-                    // ignore
+                    console.log('[VOICE] Join failed. Will retry...');
                 }
             };
 
             await ensureVoice().catch(() => { });
             setInterval(() => ensureVoice().catch(() => { }), 60_000);
         } catch (_) {
-            // ignore
+            console.log('[VOICE] @discordjs/voice not available or failed to init.');
         }
 
         const ownerId = client?.config?.ownerId || process.env.OWNER_ID;
