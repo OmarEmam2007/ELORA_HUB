@@ -5,6 +5,8 @@ module.exports = {
     name: 'guildMemberAdd',
     async execute(member, client) {
         try {
+            if (member.user?.bot) return;
+
             const toSmallCaps = (input) => {
                 const map = {
                     a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
@@ -15,6 +17,21 @@ module.exports = {
                     return map[lower] || ch;
                 }).join('');
             };
+
+            try {
+                const extraChannelIds = ['1462025794481164461', '1462079159332372480'];
+                const emoji = '<a:316591done:1480173440140054528>';
+                const text = `**${toSmallCaps('WELCOME TO ELORA')} ${member}, ${toSmallCaps('ENJOY')} ${emoji}**`;
+
+                for (const channelId of extraChannelIds) {
+                    const ch = await member.guild.channels.fetch(channelId).catch(() => null);
+                    if (ch && ch.isTextBased?.()) {
+                        await ch.send({ content: text }).catch(() => { });
+                    }
+                }
+            } catch (_) {
+                // ignore
+            }
 
             const welcomeChannelId = client?.config?.welcomeChannelId;
             if (!welcomeChannelId) return;
