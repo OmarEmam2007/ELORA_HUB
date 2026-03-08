@@ -37,6 +37,7 @@ module.exports = {
             .addOptions(
                 { label: toSmallCaps('A PROBLEM IN THE SERVER'), description: toSmallCaps('REPORT BUGS OR RULE ISSUES'), value: 'server_problem' },
                 { label: toSmallCaps('PARTNERSHIPS'), description: toSmallCaps('COLLABS, SPONSORS, AND DEALS'), value: 'partnerships' },
+                { label: toSmallCaps('GIRLS VERIFICATION'), description: toSmallCaps('VERIFY TO GET FULL ACCESS'), value: 'girls_verification' },
                 { label: toSmallCaps('SOCIAL PROBLEM'), description: toSmallCaps('CONFLICTS, HARASSMENT, OR DRAMA'), value: 'social_problem' },
                 { label: toSmallCaps('OTHER'), description: toSmallCaps('ANYTHING ELSE YOU NEED HELP WITH'), value: 'other' }
             );

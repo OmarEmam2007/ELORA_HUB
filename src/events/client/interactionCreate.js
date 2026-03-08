@@ -626,6 +626,32 @@ module.exports = {
                 }
                 return;
             }
+
+            if (interaction.customId === 'add_verified_role') {
+                const allowed = new Set(['1085496418745200730', '629373738772594728']);
+                const VERIFIER_ROLE_ID = '1480220933187829881';
+                const VERIFIED_ROLE_ID = '1480220142213267476';
+
+                const hasVerifierRole = Boolean(interaction.member?.roles?.cache?.has(VERIFIER_ROLE_ID));
+                if (!allowed.has(interaction.user.id) && !hasVerifierRole) {
+                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
+                }
+
+                const topic = String(interaction.channel?.topic || '');
+                const match = topic.match(/User:\s*[^()]*\((\d+)\)/i);
+                const openerId = match?.[1];
+                if (!openerId) {
+                    return safeReply({ content: '❌ Cannot detect ticket owner.', ephemeral: true });
+                }
+
+                const target = await interaction.guild.members.fetch(openerId).catch(() => null);
+                if (!target) {
+                    return safeReply({ content: '❌ Member not found.', ephemeral: true });
+                }
+
+                await target.roles.add(VERIFIED_ROLE_ID, 'Girls verification: verified role added').catch(() => { });
+                return safeReply({ content: '✅ Done.', ephemeral: true });
+            }
         }
 
         if (interaction.isStringSelectMenu?.() && interaction.customId === 'ticket_select') {
@@ -636,7 +662,7 @@ module.exports = {
             ];
 
             const value = interaction.values?.[0];
-            const valid = new Set(['server_problem', 'partnerships', 'social_problem', 'other']);
+            const valid = new Set(['server_problem', 'partnerships', 'girls_verification', 'social_problem', 'other']);
             if (!valid.has(value)) {
                 return safeEdit({ content: '❌ Invalid selection.' });
             }
@@ -666,6 +692,13 @@ module.exports = {
                     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
                 }
             ];
+
+            if (value === 'girls_verification') {
+                overwrites.push({
+                    id: '1480220933187829881',
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                });
+            }
 
             for (const roleId of STAFF_ROLE_IDS) {
                 overwrites.push({
@@ -700,14 +733,24 @@ module.exports = {
                     }).join('');
                 };
 
-                const closeRow = new ActionRowBuilder().addComponents(
+                const row = new ActionRowBuilder();
+                if (value === 'girls_verification') {
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('add_verified_role')
+                            .setLabel(toSmallCaps('ADD THE VERIFIED ROLE'))
+                            .setStyle(ButtonStyle.Success)
+                    );
+                }
+
+                row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('ticket_close')
                         .setLabel(toSmallCaps('CLOSE TICKET'))
                         .setStyle(ButtonStyle.Danger)
                 );
 
-                await created.send({ content: `${interaction.user}`, components: [closeRow] }).catch(() => { });
+                await created.send({ content: `${interaction.user}`, components: [row] }).catch(() => { });
             } catch (_) {
                 // ignore
             }
