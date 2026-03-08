@@ -7,6 +7,8 @@
     "logChannelId": "1462010183277346906",
     "welcomeChannelId": "1461484367728869397",
     "goodbyeChannelId": "1462555435742793910",
+    "welcomeBanner": "1.png",
+    "goodbyeBanner": "1.png",
     "colors": {
         "success": 65280,
         "error": 16711680,

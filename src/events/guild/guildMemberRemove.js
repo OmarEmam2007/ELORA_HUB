@@ -1,10 +1,22 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const path = require('path');
 const InviteStats = require('../../models/InviteStats');
 
 module.exports = {
     name: 'guildMemberRemove',
     async execute(member, client) {
         try {
+            const toSmallCaps = (input) => {
+                const map = {
+                    a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                    n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+                };
+                return String(input || '').split('').map((ch) => {
+                    const lower = ch.toLowerCase();
+                    return map[lower] || ch;
+                }).join('');
+            };
+
             // --- 🔢 Member Count Voice Channel Update (best-effort) ---
             try {
                 if (typeof client.queueMemberCountUpdate === 'function') {
@@ -77,15 +89,24 @@ module.exports = {
                 return;
             }
 
+            const bannerName = String(client?.config?.goodbyeBanner || '1.png');
+            const bannerPath = path.join(__dirname, '../../assets', bannerName);
+            const bannerFile = new AttachmentBuilder(bannerPath);
+
+            const header = '**' + toSmallCaps('GOODBYE') + '**';
+            const body = [
+                `**${toSmallCaps('USER')}:** ${member}`,
+                `**${toSmallCaps('MEMBER COUNT')}:** ${member.guild.memberCount}`
+            ].join('\n');
+
             const embed = new EmbedBuilder()
-                .setDescription(`━━━━━━━━━━━━━━━━━━━━━━━━\n**Farewell, ${member.user.tag}.**\nYour presence will be missed.\n━━━━━━━━━━━━━━━━━━━━━━━━`)
-                .setColor(client.config.colors.primary)
-                .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-                .setFooter({ text: `Member Count: ${member.guild.memberCount}` })
+                .setColor(client?.config?.colors?.primary || 0x2b2d31)
+                .setTitle(header)
+                .setDescription(body)
+                .setImage(`attachment://${bannerName}`)
                 .setTimestamp();
 
-            await channel.send({ embeds: [embed] });
-            console.log(`👋 Goodbye message sent for ${member.user.tag} (${member.id})`);
+            await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
         } catch (error) {
             console.error('Error sending goodbye message:', error);
         }
