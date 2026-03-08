@@ -20,7 +20,7 @@ module.exports = {
 
             try {
                 const extraChannelIds = ['1462025794481164461', '1462079159332372480'];
-                const emoji = '<a:316591done:1480173440140054528>';
+                const emoji = `<:316591done:1480173440140054528>`;
                 const text = `**${toSmallCaps('WELCOME TO ELORA')} ${member}, ${toSmallCaps('ENJOY')} ${emoji}**`;
 
                 for (const channelId of extraChannelIds) {
