@@ -70,6 +70,7 @@ module.exports = {
                 .setColor(client?.config?.colors?.primary || 0x2b2d31)
                 .setTitle(header)
                 .setDescription(body)
+                .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
                 .setImage(`attachment://${bannerName}`);
 
             await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });

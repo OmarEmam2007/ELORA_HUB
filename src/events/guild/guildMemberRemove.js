@@ -94,15 +94,17 @@ module.exports = {
             const bannerFile = new AttachmentBuilder(bannerPath);
 
             const header = '**' + toSmallCaps('GOODBYE') + '**';
+            const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);
             const body = [
                 `**${toSmallCaps('USER')}:** ${member}`,
-                `**${toSmallCaps('MEMBER COUNT')}:** ${member.guild.memberCount}`
+                `**${toSmallCaps('MEMBER COUNT')}:** ${memberCount}`
             ].join('\n');
 
             const embed = new EmbedBuilder()
                 .setColor(client?.config?.colors?.primary || 0x2b2d31)
                 .setTitle(header)
                 .setDescription(body)
+                .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
                 .setImage(`attachment://${bannerName}`)
                 .setTimestamp();
 
