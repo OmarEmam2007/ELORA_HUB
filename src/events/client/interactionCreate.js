@@ -631,6 +631,19 @@ module.exports = {
                 const allowed = new Set(['1085496418745200730', '629373738772594728']);
                 const VERIFIER_ROLE_ID = '1480220933187829881';
                 const VERIFIED_ROLE_ID = '1480220142213267476';
+                const UNVERIFIED_SHEHER_ROLE_ID = '1480007272368308356';
+                const HEHIM_ROLE_ID = '1480007171214151820';
+
+                const toSmallCaps = (input) => {
+                    const map = {
+                        a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                        n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+                    };
+                    return String(input || '').split('').map((ch) => {
+                        const lower = ch.toLowerCase();
+                        return map[lower] || ch;
+                    }).join('');
+                };
 
                 const hasVerifierRole = Boolean(interaction.member?.roles?.cache?.has(VERIFIER_ROLE_ID));
                 if (!allowed.has(interaction.user.id) && !hasVerifierRole) {
@@ -649,8 +662,14 @@ module.exports = {
                     return safeReply({ content: '❌ Member not found.', ephemeral: true });
                 }
 
+                const rolesToRemove = [UNVERIFIED_SHEHER_ROLE_ID, HEHIM_ROLE_ID].filter((rid) => target.roles.cache.has(rid));
+                if (rolesToRemove.length) {
+                    await target.roles.remove(rolesToRemove, 'Girls verification: remove conflicting gender roles').catch(() => { });
+                }
+
                 await target.roles.add(VERIFIED_ROLE_ID, 'Girls verification: verified role added').catch(() => { });
-                return safeReply({ content: '✅ Done.', ephemeral: true });
+                const emoji = '<:555:1479967165619634348>';
+                return safeReply({ content: `${emoji} **${toSmallCaps('ADDED')}**`, ephemeral: true });
             }
         }
 
