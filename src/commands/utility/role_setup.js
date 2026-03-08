@@ -55,7 +55,7 @@ module.exports = {
             .setCustomId('role_gender_select')
             .setPlaceholder(genderPlaceholder)
             .addOptions(
-                { label: 'ꜱʜᴇ/ʜᴇʀ', value: 'she_her' },
+                { label: `**${toSmallCaps('SHE/HER (UNVERIFIED)')}**`, value: 'she_her' },
                 { label: 'ʜᴇ/ʜɪᴍ', value: 'he_him' },
                 { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ = ʙᴀɴ', value: 'they_them' }
             );
