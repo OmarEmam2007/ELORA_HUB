@@ -59,7 +59,7 @@ module.exports = {
             const bannerPath = path.join(__dirname, '../../assets', bannerName);
             const bannerFile = new AttachmentBuilder(bannerPath);
 
-            const header = '**' + toSmallCaps('WELCOME TO LUNÁR') + '**';
+            const header = '**' + toSmallCaps('WELCOME TO ELORA') + '**';
             const body = [
                 `**${toSmallCaps('USER')}:** ${member}`,
                 `**${toSmallCaps('INVITED BY')}:** ${inviterText}`,
