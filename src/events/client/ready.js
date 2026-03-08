@@ -4,6 +4,43 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
+        // --- 🔊 Persistent Voice Connection (best-effort) ---
+        try {
+            const { joinVoiceChannel, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
+            const TARGET_VOICE_CHANNEL_ID = '1479234725288869993';
+
+            const ensureVoice = async () => {
+                try {
+                    const channel = await client.channels.fetch(TARGET_VOICE_CHANNEL_ID).catch(() => null);
+                    if (!channel || !channel.guild || !channel.isVoiceBased?.()) return;
+
+                    const connection = joinVoiceChannel({
+                        channelId: channel.id,
+                        guildId: channel.guild.id,
+                        adapterCreator: channel.guild.voiceAdapterCreator,
+                        selfDeaf: true,
+                    });
+
+                    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+                        setTimeout(() => ensureVoice().catch(() => { }), 3_000);
+                    });
+
+                    connection.on(VoiceConnectionStatus.Destroyed, async () => {
+                        setTimeout(() => ensureVoice().catch(() => { }), 3_000);
+                    });
+
+                    await entersState(connection, VoiceConnectionStatus.Ready, 30_000).catch(() => { });
+                } catch (_) {
+                    // ignore
+                }
+            };
+
+            await ensureVoice().catch(() => { });
+            setInterval(() => ensureVoice().catch(() => { }), 60_000);
+        } catch (_) {
+            // ignore
+        }
+
         const ownerId = client?.config?.ownerId || process.env.OWNER_ID;
         if (!ownerId) {
             console.warn('⚠️ WARNING: Owner ID is not set in config.json! /panic and /blacklist will NOT work.');
