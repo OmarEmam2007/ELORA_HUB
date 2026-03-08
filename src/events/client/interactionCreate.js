@@ -103,6 +103,90 @@ module.exports = {
             }
         }
 
+        if (interaction.isStringSelectMenu?.() && (interaction.customId === 'role_age_select' || interaction.customId === 'role_gender_select')) {
+            const ROLE_CHANNEL_ID = '1480003221853306971';
+            if (interaction.channelId !== ROLE_CHANNEL_ID) {
+                return;
+            }
+
+            await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+            const toSmallCaps = (input) => {
+                const map = {
+                    a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                    n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+                };
+                return String(input || '').split('').map((ch) => {
+                    const lower = ch.toLowerCase();
+                    return map[lower] || ch;
+                }).join('');
+            };
+
+            const okPrefix = `<:555:1479967165619634348> `;
+
+            const AGE_ROLE_IDS = {
+                age_13: '1480005354422140999',
+                age_14: '1480005554662539294',
+                age_15: '1480005650003136562',
+                age_16: '1480005713991569440',
+                age_17: '1480005759751291001',
+                age_18: '1480005806249349223',
+                age_19: '1480005898901651456',
+                age_20: '1480005996922540125',
+                age_21: '1480006075955675197',
+                age_22: '1480006210639102062',
+                age_23: '1480006287453589604',
+                age_24: '1480006384786346084',
+                age_25_plus: '1480006561186451476'
+            };
+
+            const GENDER_ROLE_IDS = {
+                he_him: '1480007171214151820',
+                she_her: '1480007272368308356',
+                they_them: '1480007472830873773'
+            };
+
+            const member = interaction.member;
+            if (!member || !member.roles?.cache) {
+                return;
+            }
+
+            const value = interaction.values?.[0];
+
+            if (interaction.customId === 'role_gender_select' && value === 'they_them') {
+                try {
+                    await interaction.guild.members.ban(member.id, { reason: 'Role panel: they/them selection' }).catch(() => { });
+                } catch (_) {
+                    // ignore
+                }
+                return safeEdit({ content: `${okPrefix}**${toSmallCaps('ACTION COMPLETED')}**` });
+            }
+
+            if (interaction.customId === 'role_age_select') {
+                const roleId = AGE_ROLE_IDS[value];
+                if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
+
+                const toRemove = Object.values(AGE_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                if (toRemove.length) {
+                    await member.roles.remove(toRemove).catch(() => { });
+                }
+                await member.roles.add(roleId).catch(() => { });
+                return safeEdit({ content: `${okPrefix}**${toSmallCaps('AGE UPDATED')}**` });
+            }
+
+            if (interaction.customId === 'role_gender_select') {
+                const roleId = GENDER_ROLE_IDS[value];
+                if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
+
+                const toRemove = Object.values(GENDER_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                if (toRemove.length) {
+                    await member.roles.remove(toRemove).catch(() => { });
+                }
+                await member.roles.add(roleId).catch(() => { });
+                return safeEdit({ content: `${okPrefix}**${toSmallCaps('GENDER UPDATED')}**` });
+            }
+        }
+
         // --- ⚙️ SETTINGS PANEL SELECT MENU (Admin only) ---
         if (interaction.isStringSelectMenu?.() && interaction.customId === 'settings_menu') {
             if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
