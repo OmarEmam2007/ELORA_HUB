@@ -11,7 +11,7 @@ const SettingsCommand = require('../../commands/utility/settings');
 
 const TVCP = {
     PREFIX: 'tvcp_',
-    TOPIC_PREFIX: 'tempvoice_owner:',
+    TEMP_PREFIX: '🔊 | ',
     toSmallCaps(input) {
         const map = {
             a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
@@ -22,17 +22,13 @@ const TVCP = {
             return map[lower] || ch;
         }).join('');
     },
-    getOwnerIdFromChannel(channel) {
-        const topic = String(channel?.topic || '');
-        if (!topic.startsWith(TVCP.TOPIC_PREFIX)) return null;
-        const id = topic.slice(TVCP.TOPIC_PREFIX.length).trim();
-        return id || null;
-    },
     async findOwnedTempChannel(guild, ownerId) {
         if (!guild || !ownerId) return null;
         const voiceChannels = guild.channels.cache.filter((c) => c?.type === ChannelType.GuildVoice);
         for (const [, ch] of voiceChannels) {
-            if (TVCP.getOwnerIdFromChannel(ch) === ownerId) return ch;
+            const isTemp = ch?.name?.startsWith?.(TVCP.TEMP_PREFIX);
+            const isOwner = Boolean(ch?.permissionOverwrites?.cache?.get(ownerId)?.allow?.has?.(PermissionFlagsBits.ManageChannels));
+            if (isTemp && isOwner) return ch;
         }
         return null;
     },
@@ -122,8 +118,6 @@ module.exports = {
                 }
 
                 const prevOwnerId = interaction.user.id;
-
-                await ch.setTopic(`${TVCP.TOPIC_PREFIX}${nextOwnerId}`, `TempVoice ownership transfer by ${interaction.user.tag}`).catch(() => null);
 
                 try {
                     await ch.permissionOverwrites.edit(prevOwnerId, {
