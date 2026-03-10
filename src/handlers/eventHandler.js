@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 
 async function loadEvents(client) {
+    if (client.__eventsLoaded) {
+        console.log('ℹ️ Events already loaded; skipping duplicate registration');
+        return;
+    }
+    client.__eventsLoaded = true;
+
     const folders = fs.readdirSync(path.join(__dirname, '../events'));
     for (const folder of folders) {
         const files = fs.readdirSync(path.join(__dirname, `../events/${folder}`)).filter((file) => file.endsWith('.js'));
