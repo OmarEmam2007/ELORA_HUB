@@ -1,5 +1,6 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
+const InviteStats = require('../../models/InviteStats');
 
 module.exports = {
     name: 'guildMemberAdd',
@@ -43,6 +44,8 @@ module.exports = {
             const guildId = guild.id;
 
             let inviterText = '@DISBOARD';
+            let detectedInviterId = null;
+            let joinUsedInviteCode = null;
 
             try {
                 if (!client.inviteCache) client.inviteCache = new Map();
@@ -66,10 +69,40 @@ module.exports = {
 
                     if (usedInvite?.inviter) {
                         inviterText = `${usedInvite.inviter}`;
+                        detectedInviterId = usedInvite.inviter.id;
+                        joinUsedInviteCode = usedInvite.code;
                     }
                 }
             } catch (_) {
                 inviterText = '@DISBOARD';
+            }
+
+            // --- 🎫 Invite Join Tracking (MongoDB) ---
+            // Best-effort: never block welcome message.
+            try {
+                if (detectedInviterId && detectedInviterId !== member.id) {
+                    const now = new Date();
+                    const isFake = (now.getTime() - member.user.createdAt.getTime()) < (24 * 60 * 60 * 1000);
+
+                    const stats = await InviteStats.findOneAndUpdate(
+                        { guildId, userId: detectedInviterId },
+                        { $setOnInsert: { guildId, userId: detectedInviterId } },
+                        { new: true, upsert: true }
+                    ).catch(() => null);
+
+                    if (stats) {
+                        const already = stats.invitedUsers?.some(u => u.userId === member.id);
+                        if (!already) {
+                            stats.invitedUsers.push({ userId: member.id, joinedAt: now, isFake, left: false });
+                            if (isFake) stats.fakeInvites = (stats.fakeInvites || 0) + 1;
+                            else stats.regularInvites = (stats.regularInvites || 0) + 1;
+                            stats.inviteCount = (stats.inviteCount || 0) + 1;
+                            await stats.save().catch(() => { });
+                        }
+                    }
+                }
+            } catch (_) {
+                // ignore
             }
 
             const bannerName = String(client?.config?.welcomeBanner || '1.png');
