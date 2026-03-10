@@ -36,6 +36,7 @@ module.exports = {
                 }
 
                 if (newCh?.id === MASTER_CHANNEL_ID && oldCh?.id !== MASTER_CHANNEL_ID) {
+                    console.log(`[TempVoice] ${member.user.tag} joined master (${MASTER_CHANNEL_ID}). Creating temp channel...`);
                     const parentId = newCh.parentId || null;
 
                     const created = await guild.channels.create({
@@ -64,6 +65,9 @@ module.exports = {
 
                     if (created) {
                         await newState.setChannel(created).catch(() => { });
+                        console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
+                    } else {
+                        console.log(`[TempVoice] Create returned null for ${member.user.tag}. Check permission/errors above.`);
                     }
                 }
             } catch (_) {

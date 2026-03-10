@@ -13,7 +13,7 @@ const toSmallCaps = (input) => {
     }).join('');
 };
 
-const scBold = (input) => `**${toSmallCaps(input)}**`;
+const scLabel = (input) => `${toSmallCaps(input)}`;
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -47,25 +47,25 @@ module.exports = {
             .setImage('attachment://downlfffffoad.png');
 
         const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒').setLabel(scBold('Lock')),
-            new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓').setLabel(scBold('Unlock')),
-            new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('🫥').setLabel(scBold('Hide')),
-            new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('👁️').setLabel(scBold('Show')),
-            new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('🎚️').setLabel(scBold('Bitrate'))
+            new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒').setLabel(scLabel('Lock')),
+            new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓').setLabel(scLabel('Unlock')),
+            new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('🫥').setLabel(scLabel('Hide')),
+            new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('👁️').setLabel(scLabel('Show')),
+            new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('🎚️').setLabel(scLabel('Bitrate'))
         );
 
         const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_transfer_owner').setStyle(ButtonStyle.Secondary).setEmoji('👑').setLabel(scBold('Owner')),
-            new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('👥').setLabel(scBold('Limit')),
-            new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('✏️').setLabel(scBold('Rename')),
-            new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('📌').setLabel(scBold('Join')),
-            new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('🧲').setLabel(scBold('Move'))
+            new ButtonBuilder().setCustomId('tvcp_transfer_owner').setStyle(ButtonStyle.Secondary).setEmoji('👑').setLabel(scLabel('Owner')),
+            new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('👥').setLabel(scLabel('Limit')),
+            new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('✏️').setLabel(scLabel('Rename')),
+            new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('📌').setLabel(scLabel('Join')),
+            new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('🧲').setLabel(scLabel('Move'))
         );
 
         const row3 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔇').setLabel(scBold('Mute')),
-            new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🎧').setLabel(scBold('Deafen')),
-            new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('🗑️').setLabel(scBold('Kick'))
+            new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔇').setLabel(scLabel('Mute')),
+            new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🎧').setLabel(scLabel('Deafen')),
+            new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('🗑️').setLabel(scLabel('Kick'))
         );
 
         await channel.send({ files: [banner], embeds: [embed], components: [row1, row2, row3] });
