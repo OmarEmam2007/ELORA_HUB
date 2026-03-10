@@ -14,6 +14,7 @@ module.exports = {
 
             const MASTER_CHANNEL_ID = '1479241475845001381';
             const TEMP_PREFIX = '🔊 | ';
+            const TEMP_TOPIC_PREFIX = 'tempvoice_owner:';
 
             const userId = member.id;
             const guildId = guild.id;
@@ -25,7 +26,12 @@ module.exports = {
                 const oldCh = oldState.channel;
                 const newCh = newState.channel;
 
-                if (oldCh?.type === 2 && oldCh?.name?.startsWith?.(TEMP_PREFIX) && oldCh.members?.size === 0) {
+                if (
+                    oldCh?.type === 2 &&
+                    oldCh?.name?.startsWith?.(TEMP_PREFIX) &&
+                    String(oldCh?.topic || '').startsWith(TEMP_TOPIC_PREFIX) &&
+                    oldCh.members?.size === 0
+                ) {
                     await oldCh.delete('Dynamic voice: temp channel empty').catch(() => { });
                 }
 
@@ -36,6 +42,7 @@ module.exports = {
                         name: `${TEMP_PREFIX}${member.user.username}`,
                         type: 2,
                         parent: parentId,
+                        topic: `${TEMP_TOPIC_PREFIX}${member.id}`,
                         reason: `Dynamic voice created for ${member.user.tag} (${member.id})`,
                         permissionOverwrites: [
                             {

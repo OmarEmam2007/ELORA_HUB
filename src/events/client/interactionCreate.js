@@ -9,6 +9,55 @@ const THEME = require('../../utils/theme');
 const HelpCommand = require('../../commands/utility/help');
 const SettingsCommand = require('../../commands/utility/settings');
 
+const TVCP = {
+    PREFIX: 'tvcp_',
+    TOPIC_PREFIX: 'tempvoice_owner:',
+    toSmallCaps(input) {
+        const map = {
+            a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+            n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+        };
+        return String(input || '').split('').map((ch) => {
+            const lower = ch.toLowerCase();
+            return map[lower] || ch;
+        }).join('');
+    },
+    getOwnerIdFromChannel(channel) {
+        const topic = String(channel?.topic || '');
+        if (!topic.startsWith(TVCP.TOPIC_PREFIX)) return null;
+        const id = topic.slice(TVCP.TOPIC_PREFIX.length).trim();
+        return id || null;
+    },
+    async findOwnedTempChannel(guild, ownerId) {
+        if (!guild || !ownerId) return null;
+        const voiceChannels = guild.channels.cache.filter((c) => c?.type === ChannelType.GuildVoice);
+        for (const [, ch] of voiceChannels) {
+            if (TVCP.getOwnerIdFromChannel(ch) === ownerId) return ch;
+        }
+        return null;
+    },
+    async requireOwnerAndChannel(interaction, safeReply) {
+        if (!interaction.guild) {
+            await safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
+            return { ok: false };
+        }
+
+        const ch = await TVCP.findOwnedTempChannel(interaction.guild, interaction.user.id);
+        if (!ch) {
+            await safeReply({ content: '❌ You do not have an active temp voice channel.', ephemeral: true });
+            return { ok: false };
+        }
+
+        const me = interaction.guild.members.me;
+        if (!me?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+            await safeReply({ content: '❌ Missing bot permission: Manage Channels.', ephemeral: true });
+            return { ok: false };
+        }
+
+        return { ok: true, channel: ch };
+    }
+};
+
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
@@ -18,6 +67,81 @@ module.exports = {
             if (id.startsWith('mod_') || id.startsWith('dash_') || id.startsWith('settings_') || id === 'settings_menu') {
                 return;
             }
+
+        // --- 🎛️ TEMPVOICE CONTROL PANEL (TVCP) MODALS ---
+        if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith(`${TVCP.PREFIX}modal_`)) {
+            if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
+
+            const req = await TVCP.requireOwnerAndChannel(interaction, safeReply);
+            if (!req.ok) return;
+            const ch = req.channel;
+
+            if (interaction.customId === `${TVCP.PREFIX}modal_rename`) {
+                const name = interaction.fields.getTextInputValue('name')?.trim();
+                if (!name || name.length < 1 || name.length > 80) {
+                    return safeReply({ content: '❌ Invalid name length.', ephemeral: true });
+                }
+                await ch.setName(name, `TempVoice rename by ${interaction.user.tag}`).catch(() => null);
+                return safeReply({ content: '✅ Channel renamed.', ephemeral: true });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}modal_limit`) {
+                const raw = interaction.fields.getTextInputValue('limit')?.trim();
+                const num = Number(raw);
+                if (!Number.isFinite(num) || num < 0 || num > 99) {
+                    return safeReply({ content: '❌ Limit must be a number between 0 and 99 (0 = unlimited).', ephemeral: true });
+                }
+                await ch.setUserLimit(Math.floor(num), `TempVoice limit by ${interaction.user.tag}`).catch(() => null);
+                return safeReply({ content: '✅ User limit updated.', ephemeral: true });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}modal_bitrate`) {
+                const raw = interaction.fields.getTextInputValue('bitrate')?.trim();
+                const kbps = Number(raw);
+                if (!Number.isFinite(kbps) || kbps < 8 || kbps > 384) {
+                    return safeReply({ content: '❌ Bitrate must be between 8 and 384 (kbps).', ephemeral: true });
+                }
+                const bps = Math.floor(kbps) * 1000;
+                await ch.setBitrate(bps, `TempVoice bitrate by ${interaction.user.tag}`).catch(() => null);
+                return safeReply({ content: '✅ Bitrate updated.', ephemeral: true });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}modal_transfer_owner`) {
+                const raw = interaction.fields.getTextInputValue('user_id')?.trim();
+                const nextOwnerId = raw?.replace(/[^0-9]/g, '');
+                if (!nextOwnerId) {
+                    return safeReply({ content: '❌ Invalid user id.', ephemeral: true });
+                }
+                if (nextOwnerId === interaction.user.id) {
+                    return safeReply({ content: '❌ You are already the owner.', ephemeral: true });
+                }
+
+                const nextMember = await interaction.guild.members.fetch(nextOwnerId).catch(() => null);
+                if (!nextMember) {
+                    return safeReply({ content: '❌ Member not found in this server.', ephemeral: true });
+                }
+
+                const prevOwnerId = interaction.user.id;
+
+                await ch.setTopic(`${TVCP.TOPIC_PREFIX}${nextOwnerId}`, `TempVoice ownership transfer by ${interaction.user.tag}`).catch(() => null);
+
+                try {
+                    await ch.permissionOverwrites.edit(prevOwnerId, {
+                        ManageChannels: null,
+                        MoveMembers: null
+                    }, { reason: `TempVoice ownership transfer: remove perms from ${prevOwnerId}` }).catch(() => null);
+
+                    await ch.permissionOverwrites.edit(nextOwnerId, {
+                        ManageChannels: true,
+                        MoveMembers: true
+                    }, { reason: `TempVoice ownership transfer: grant perms to ${nextOwnerId}` }).catch(() => null);
+                } catch (_) {
+                    // ignore
+                }
+
+                return safeReply({ content: `✅ Ownership transferred to ${nextMember.user.tag}.`, ephemeral: true });
+            }
+        }
         } catch (_) {
             // ignore
         }
@@ -187,6 +311,49 @@ module.exports = {
             }
         }
 
+        // --- 🎛️ TEMPVOICE CONTROL PANEL (TVCP) SELECT MENUS ---
+        if (interaction.isStringSelectMenu?.() && interaction.customId && interaction.customId.startsWith(TVCP.PREFIX)) {
+            await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+            const req = await TVCP.requireOwnerAndChannel(interaction, safeReply);
+            if (!req.ok) return;
+            const ch = req.channel;
+
+            const targetId = interaction.values?.[0];
+            if (!targetId) return safeEdit({ content: '❌ Invalid selection.' });
+            const target = await interaction.guild.members.fetch(targetId).catch(() => null);
+            if (!target) return safeEdit({ content: '❌ Member not found.' });
+            if (target.id === interaction.user.id) return safeEdit({ content: '❌ You cannot target yourself.' });
+
+            const isInSame = target.voice?.channelId === ch.id;
+
+            if (interaction.customId === `${TVCP.PREFIX}kick_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                await target.voice.disconnect(`TempVoice kick by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Kicked ${target.user.tag}.` });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}move_select`) {
+                if (!target.voice?.channelId) return safeEdit({ content: '❌ That member is not in voice.' });
+                await target.voice.setChannel(ch, `TempVoice move by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Moved ${target.user.tag} to your channel.` });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}mute_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                const next = !Boolean(target.voice?.serverMute);
+                await target.voice.setMute(next, `TempVoice mute toggle by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ ${next ? 'Muted' : 'Unmuted'} ${target.user.tag}.` });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}deafen_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                const next = !Boolean(target.voice?.serverDeaf);
+                await target.voice.setDeaf(next, `TempVoice deafen toggle by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ ${next ? 'Deafened' : 'Undeafened'} ${target.user.tag}.` });
+            }
+        }
+
         // --- ⚙️ SETTINGS PANEL SELECT MENU (Admin only) ---
         if (interaction.isStringSelectMenu?.() && interaction.customId === 'settings_menu') {
             if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
@@ -225,6 +392,201 @@ module.exports = {
 
         try {
         if (interaction.isButton()) {
+            // --- 🎛️ TEMPVOICE CONTROL PANEL (TVCP) BUTTONS ---
+            if (interaction.customId && interaction.customId.startsWith(TVCP.PREFIX)) {
+                if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
+
+                const req = await TVCP.requireOwnerAndChannel(interaction, safeReply);
+                if (!req.ok) return;
+                const ch = req.channel;
+
+                if (interaction.customId === `${TVCP.PREFIX}lock`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    await ch.permissionOverwrites.edit(interaction.guild.roles.everyone.id, {
+                        Connect: false
+                    }, { reason: `TempVoice lock by ${interaction.user.tag}` }).catch(() => null);
+                    return safeEdit({ content: `✅ **${TVCP.toSmallCaps('LOCKED')}**` });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}unlock`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    await ch.permissionOverwrites.edit(interaction.guild.roles.everyone.id, {
+                        Connect: null
+                    }, { reason: `TempVoice unlock by ${interaction.user.tag}` }).catch(() => null);
+                    return safeEdit({ content: `✅ **${TVCP.toSmallCaps('UNLOCKED')}**` });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}hide`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    await ch.permissionOverwrites.edit(interaction.guild.roles.everyone.id, {
+                        ViewChannel: false
+                    }, { reason: `TempVoice hide by ${interaction.user.tag}` }).catch(() => null);
+                    return safeEdit({ content: `✅ **${TVCP.toSmallCaps('HIDDEN')}**` });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}show`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    await ch.permissionOverwrites.edit(interaction.guild.roles.everyone.id, {
+                        ViewChannel: null
+                    }, { reason: `TempVoice show by ${interaction.user.tag}` }).catch(() => null);
+                    return safeEdit({ content: `✅ **${TVCP.toSmallCaps('VISIBLE')}**` });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}rename`) {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`${TVCP.PREFIX}modal_rename`)
+                        .setTitle('TempVoice Rename');
+
+                    const input = new TextInputBuilder()
+                        .setCustomId('name')
+                        .setLabel('New channel name')
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                        .setMaxLength(80);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(input));
+                    return interaction.showModal(modal);
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}bitrate`) {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`${TVCP.PREFIX}modal_bitrate`)
+                        .setTitle('TempVoice Bitrate');
+
+                    const input = new TextInputBuilder()
+                        .setCustomId('bitrate')
+                        .setLabel('Bitrate in kbps (8 - 384)')
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                        .setMaxLength(3);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(input));
+                    return interaction.showModal(modal);
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}transfer_owner`) {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`${TVCP.PREFIX}modal_transfer_owner`)
+                        .setTitle('Transfer TempVoice Ownership');
+
+                    const input = new TextInputBuilder()
+                        .setCustomId('user_id')
+                        .setLabel('New owner user id')
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                        .setMaxLength(32);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(input));
+                    return interaction.showModal(modal);
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}limit`) {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`${TVCP.PREFIX}modal_limit`)
+                        .setTitle('TempVoice User Limit');
+
+                    const input = new TextInputBuilder()
+                        .setCustomId('limit')
+                        .setLabel('0 = unlimited, max 99')
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                        .setMaxLength(2);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(input));
+                    return interaction.showModal(modal);
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}move_me`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const m = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                    if (!m?.voice?.channelId) {
+                        return safeEdit({ content: '❌ You are not in a voice channel.' });
+                    }
+                    await m.voice.setChannel(ch, `TempVoice move self by ${interaction.user.tag}`).catch(() => null);
+                    return safeEdit({ content: `✅ Moved you to ${ch}.` });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_kick_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Kick from voice'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}kick_select`)
+                        .setPlaceholder('Select a user to kick')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_move_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Move to your channel'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}move_select`)
+                        .setPlaceholder('Select a user to move')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_mute_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Toggle server mute'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}mute_select`)
+                        .setPlaceholder('Select a user to mute/unmute')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_deafen_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Toggle server deafen'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}deafen_select`)
+                        .setPlaceholder('Select a user to deafen/undeafen')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+            }
+
             // --- 📚 HELP PANEL BUTTONS ---
             if (interaction.customId && interaction.customId.startsWith('help_')) {
                 const page = interaction.customId.replace('help_', '') || 'home';
