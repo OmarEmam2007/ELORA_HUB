@@ -12,6 +12,7 @@ const SettingsCommand = require('../../commands/utility/settings');
 const TVCP = {
     PREFIX: 'tvcp_',
     TEMP_PREFIX: '🔊 | ',
+    lastChannelByUser: new Map(),
     toSmallCaps(input) {
         const map = {
             a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
@@ -24,6 +25,14 @@ const TVCP = {
     },
     async findOwnedTempChannel(guild, ownerId) {
         if (!guild || !ownerId) return null;
+
+        const cachedId = TVCP.lastChannelByUser.get(ownerId);
+        if (cachedId) {
+            const cached = guild.channels.cache.get(cachedId);
+            const cachedIsTemp = cached?.type === ChannelType.GuildVoice && cached?.name?.startsWith?.(TVCP.TEMP_PREFIX);
+            if (cachedIsTemp) return cached;
+        }
+
         const voiceChannels = guild.channels.cache.filter((c) => c?.type === ChannelType.GuildVoice);
         for (const [, ch] of voiceChannels) {
             const isTemp = ch?.name?.startsWith?.(TVCP.TEMP_PREFIX);
@@ -38,11 +47,20 @@ const TVCP = {
             return { ok: false };
         }
 
+        const selfMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        const currentVoice = selfMember?.voice?.channel;
+        if (currentVoice?.type === ChannelType.GuildVoice && currentVoice?.name?.startsWith?.(TVCP.TEMP_PREFIX)) {
+            TVCP.lastChannelByUser.set(interaction.user.id, currentVoice.id);
+            return { ok: true, channel: currentVoice };
+        }
+
         const ch = await TVCP.findOwnedTempChannel(interaction.guild, interaction.user.id);
         if (!ch) {
             await safeReply({ content: '❌ You do not have an active temp voice channel.', ephemeral: true });
             return { ok: false };
         }
+
+        TVCP.lastChannelByUser.set(interaction.user.id, ch.id);
 
         const me = interaction.guild.members.me;
         if (!me?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
@@ -327,6 +345,30 @@ module.exports = {
                 return safeEdit({ content: `✅ Kicked ${target.user.tag}.` });
             }
 
+            if (interaction.customId === `${TVCP.PREFIX}transfer_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+
+                const prevOwnerId = interaction.user.id;
+                const nextOwnerId = target.id;
+
+                try {
+                    await ch.permissionOverwrites.edit(prevOwnerId, {
+                        ManageChannels: null,
+                        MoveMembers: null
+                    }, { reason: `TempVoice ownership transfer: remove perms from ${prevOwnerId}` }).catch(() => null);
+
+                    await ch.permissionOverwrites.edit(nextOwnerId, {
+                        ManageChannels: true,
+                        MoveMembers: true
+                    }, { reason: `TempVoice ownership transfer: grant perms to ${nextOwnerId}` }).catch(() => null);
+                } catch (_) {
+                    // ignore
+                }
+
+                TVCP.lastChannelByUser.set(nextOwnerId, ch.id);
+                return safeEdit({ content: `✅ Ownership transferred to ${target.user.tag}.` });
+            }
+
             if (interaction.customId === `${TVCP.PREFIX}move_select`) {
                 if (!target.voice?.channelId) return safeEdit({ content: '❌ That member is not in voice.' });
                 await target.voice.setChannel(ch, `TempVoice move by ${interaction.user.tag}`).catch(() => null);
@@ -335,16 +377,26 @@ module.exports = {
 
             if (interaction.customId === `${TVCP.PREFIX}mute_select`) {
                 if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
-                const next = !Boolean(target.voice?.serverMute);
-                await target.voice.setMute(next, `TempVoice mute toggle by ${interaction.user.tag}`).catch(() => null);
-                return safeEdit({ content: `✅ ${next ? 'Muted' : 'Unmuted'} ${target.user.tag}.` });
+                await target.voice.setMute(true, `TempVoice mute by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Muted ${target.user.tag}.` });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}unmute_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                await target.voice.setMute(false, `TempVoice unmute by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Unmuted ${target.user.tag}.` });
             }
 
             if (interaction.customId === `${TVCP.PREFIX}deafen_select`) {
                 if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
-                const next = !Boolean(target.voice?.serverDeaf);
-                await target.voice.setDeaf(next, `TempVoice deafen toggle by ${interaction.user.tag}`).catch(() => null);
-                return safeEdit({ content: `✅ ${next ? 'Deafened' : 'Undeafened'} ${target.user.tag}.` });
+                await target.voice.setDeaf(true, `TempVoice deafen by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Deafened ${target.user.tag}.` });
+            }
+
+            if (interaction.customId === `${TVCP.PREFIX}undeafen_select`) {
+                if (!isInSame) return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                await target.voice.setDeaf(false, `TempVoice undeafen by ${interaction.user.tag}`).catch(() => null);
+                return safeEdit({ content: `✅ Undeafened ${target.user.tag}.` });
             }
         }
 
@@ -520,6 +572,46 @@ module.exports = {
                     return safeEdit({ content: 'Select a user:', components: [row] });
                 }
 
+                if (interaction.customId === `${TVCP.PREFIX}open_unmute_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Unmute'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}unmute_select`)
+                        .setPlaceholder('Select a user to unmute')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_transfer_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Transfer ownership'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}transfer_select`)
+                        .setPlaceholder('Select a new owner')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a new owner:', components: [row] });
+                }
+
                 if (interaction.customId === `${TVCP.PREFIX}open_move_menu`) {
                     await interaction.deferReply({ ephemeral: true }).catch(() => { });
                     const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
@@ -548,12 +640,12 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Toggle server mute'
+                        description: 'Mute'
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}mute_select`)
-                        .setPlaceholder('Select a user to mute/unmute')
+                        .setPlaceholder('Select a user to mute')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -568,12 +660,32 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Toggle server deafen'
+                        description: 'Deafen'
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}deafen_select`)
-                        .setPlaceholder('Select a user to deafen/undeafen')
+                        .setPlaceholder('Select a user to deafen')
+                        .addOptions(options);
+
+                    const row = new ActionRowBuilder().addComponents(menu);
+                    return safeEdit({ content: 'Select a user:', components: [row] });
+                }
+
+                if (interaction.customId === `${TVCP.PREFIX}open_undeafen_menu`) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const inChannel = ch.members?.filter((m) => m?.id !== interaction.user.id).first(20) || [];
+                    if (!inChannel.length) return safeEdit({ content: 'ℹ️ No other members in your channel.' });
+
+                    const options = inChannel.map((m) => ({
+                        label: m.user.username.slice(0, 100),
+                        value: m.id,
+                        description: 'Undeafen'
+                    }));
+
+                    const menu = new (require('discord.js').StringSelectMenuBuilder)()
+                        .setCustomId(`${TVCP.PREFIX}undeafen_select`)
+                        .setPlaceholder('Select a user to undeafen')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);

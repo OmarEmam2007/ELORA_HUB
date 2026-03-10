@@ -33,17 +33,8 @@ module.exports = {
 
         const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/downlfffffoad.png'));
 
-        const title = `**${toSmallCaps('TEMPVOICE CONTROL PANEL')}**`;
-
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setTitle(title)
-            .setDescription(
-                [
-                    `Use the buttons below to control **your** temporary voice channel.`,
-                    `Only the channel owner can use these controls.`,
-                ].join('\n')
-            )
             .setImage('attachment://downlfffffoad.png');
 
         const row1 = new ActionRowBuilder().addComponents(
@@ -55,7 +46,7 @@ module.exports = {
         );
 
         const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_transfer_owner').setStyle(ButtonStyle.Secondary).setEmoji('👑').setLabel(scLabel('Owner')),
+            new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('👑').setLabel(scLabel('Owner')),
             new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('👥').setLabel(scLabel('Limit')),
             new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('✏️').setLabel(scLabel('Rename')),
             new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('📌').setLabel(scLabel('Join')),
@@ -64,7 +55,9 @@ module.exports = {
 
         const row3 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔇').setLabel(scLabel('Mute')),
+            new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔈').setLabel(scLabel('Unmute')),
             new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🎧').setLabel(scLabel('Deafen')),
+            new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🦻').setLabel(scLabel('Undeafen')),
             new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('🗑️').setLabel(scLabel('Kick'))
         );
 
