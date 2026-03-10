@@ -41,7 +41,6 @@ module.exports = {
                     const created = await guild.channels.create({
                         name: `${TEMP_PREFIX}${member.user.username}`,
                         type: 2,
-                        parent: parentId,
                         topic: `${TEMP_TOPIC_PREFIX}${member.id}`,
                         reason: `Dynamic voice created for ${member.user.tag} (${member.id})`,
                         permissionOverwrites: [
@@ -54,7 +53,14 @@ module.exports = {
                                 allow: ['ManageChannels', 'MoveMembers']
                             }
                         ]
-                    }).catch(() => null);
+                    }).catch((e) => {
+                        console.error('[TempVoice] failed to create channel:', e);
+                        return null;
+                    });
+
+                    if (created && parentId) {
+                        await created.setParent(parentId, { lockPermissions: false, reason: 'Dynamic voice: set parent category' }).catch(() => { });
+                    }
 
                     if (created) {
                         await newState.setChannel(created).catch(() => { });
