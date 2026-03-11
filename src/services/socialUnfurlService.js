@@ -24,11 +24,11 @@ async function unfurlSocialLink(content) {
     const instaUrl = extractFirstUrl(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/[A-Za-z0-9_-]+(?:\?[^\s]*)?/i);
     if (instaUrl) return replaceHostname(instaUrl, 'ddinstagram.com');
 
-    // TikTok -> vxtiktok
+    // TikTok -> d.tiktokez.com
     const tiktokUrl = extractFirstUrl(/https?:\/\/(?:www\.|vm\.|vt\.)?tiktok\.com\/(?:@[^\s\/]+\/video\/\d+|t\/[A-Za-z0-9]+|[A-Za-z0-9_-]+)(?:\?[^\s]*)?/i);
     if (tiktokUrl) {
-        const chosen = (process.env.TIKTOK_REWRITE_DOMAIN || 'vxtiktok.com').trim();
-        const domain = chosen || 'vxtiktok.com';
+        const chosen = (process.env.TIKTOK_REWRITE_DOMAIN || 'd.tiktokez.com').trim();
+        const domain = chosen || 'd.tiktokez.com';
         return replaceHostname(tiktokUrl, domain);
     }
 
