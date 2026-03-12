@@ -153,7 +153,11 @@ module.exports = {
         try {
             const unfurled = await unfurlSocialLink(message.content);
             if (unfurled) {
-                await message.reply(unfurled).catch(() => { });
+                const userTag = message.author.tag;
+                await message.channel.send({
+                    content: `**${userTag}:** ${unfurled}`
+                }).catch(() => { });
+                await message.delete().catch(() => { });
             }
         } catch (e) {
             console.error('[UNFURL] Error:', e);
