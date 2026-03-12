@@ -1,3 +1,4 @@
+const { unfurlSocialLink } = require('../../services/socialUnfurlService');
 const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
@@ -146,6 +147,16 @@ module.exports = {
             }
         } catch (e) {
             console.error('[LEVELING] Error:', e);
+        }
+
+        // --- Social Unfurl (TikTok/Instagram) ---
+        try {
+            const unfurled = await unfurlSocialLink(message.content);
+            if (unfurled) {
+                await message.reply(unfurled).catch(() => { });
+            }
+        } catch (e) {
+            console.error('[UNFURL] Error:', e);
         }
 
         // --- Prefix Commands (after filters/systems) ---
