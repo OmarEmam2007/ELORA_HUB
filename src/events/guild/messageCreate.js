@@ -149,7 +149,7 @@ module.exports = {
             console.error('[LEVELING] Error:', e);
         }
 
-        // --- Social Unfurl (TikTok/Instagram) ---
+        // --- Social Unfurl (TikTok Only) ---
         try {
             const unfurled = await unfurlSocialLink(message.content);
             if (unfurled) {
@@ -158,6 +158,7 @@ module.exports = {
                     content: `**${userTag}:** ${unfurled}`
                 }).catch(() => { });
                 await message.delete().catch(() => { });
+                return; // منع تكرار المعالجة
             }
         } catch (e) {
             console.error('[UNFURL] Error:', e);

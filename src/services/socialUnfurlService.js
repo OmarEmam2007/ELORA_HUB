@@ -20,10 +20,6 @@ async function unfurlSocialLink(content) {
             .split('#')[0];
     };
 
-    // Instagram -> ddinstagram
-    const instaUrl = extractFirstUrl(/https?:\/\/(?:www\.)?instagram\.com\/(?:reel|reels|p|tv)\/[A-Za-z0-9_-]+(?:\?[^\s]*)?/i);
-    if (instaUrl) return replaceHostname(instaUrl, 'ddinstagram.com');
-
     // TikTok -> d.tiktokez.com
     const tiktokUrl = extractFirstUrl(/https?:\/\/(?:www\.|vm\.|vt\.)?tiktok\.com\/(?:@[^\s\/]+\/video\/\d+|t\/[A-Za-z0-9]+|[A-Za-z0-9_-]+)(?:\?[^\s]*)?/i);
     if (tiktokUrl) {
