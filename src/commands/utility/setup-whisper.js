@@ -27,14 +27,14 @@ module.exports = {
             .setPlaceholder('Choose the type of message')
             .addOptions(
                 {
-                    label: 'Private Whisper',
+                    label: 'Private Message',
                     value: 'private',
-                    description: 'Only the mentioned user can read it.'
+                    description: 'Send a secret message to someone in DM'
                 },
                 {
-                    label: 'Public Whisper',
+                    label: 'Public Message',
                     value: 'public',
-                    description: 'Send to the public whisper channel.'
+                    description: 'Send a secret message to someone in main chat'
                 }
             );
 

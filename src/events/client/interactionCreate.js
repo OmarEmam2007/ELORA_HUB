@@ -1328,8 +1328,15 @@ module.exports = {
                 return safeReply({ content: '**✅ Public whisper sent.**', ephemeral: true });
             }
 
-            await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
-            return safeReply({ content: '**✅ Private whisper sent.**', ephemeral: true });
+            // Private: Try DM first
+            try {
+                await member.send({ content: mentionLine, components: [row] });
+                return safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
+            } catch (dmError) {
+                // Fallback to channel if DMs are closed
+                await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
+                return safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+            }
         }
 
         if (interaction.isButton() && String(interaction.customId || '').startsWith('whisper_read_')) {
