@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown } = require('discord.js');
 const ModSettings = require('../../models/ModSettings');
 const ModLog = require('../../models/ModLog');
 const GuildSecurityConfig = require('../../models/GuildSecurityConfig');
@@ -179,6 +179,16 @@ module.exports = {
                 return safeReply(payload);
             }
         };
+
+        if (!client.whisperSecrets) client.whisperSecrets = new Map();
+
+        const sanitizeWhisper = (input) => {
+            const raw = String(input || '').trim();
+            const esc = typeof escapeMarkdown === 'function' ? escapeMarkdown(raw) : raw.replace(/\*/g, '\\*').replace(/_/g, '\\_').replace(/`/g, '\\`');
+            return esc.length > 3500 ? `${esc.slice(0, 3500)}…` : esc;
+        };
+
+        const normalizeUserId = (raw) => String(raw || '').trim().replace(/[^0-9]/g, '');
 
         // --- ⚙️ SETTINGS PANEL MODALS (Admin only) ---
         if (interaction.isModalSubmit() && (interaction.customId === 'settings_modal_whitelist_role' || interaction.customId === 'settings_modal_whitelist_channel')) {
@@ -1243,6 +1253,96 @@ module.exports = {
             } catch (_) {
                 // ignore
             }
+        }
+
+        if (interaction.isStringSelectMenu() && interaction.customId === 'whisper_type_select') {
+            const value = interaction.values?.[0];
+            if (value !== 'private' && value !== 'public') {
+                return safeReply({ content: '**❌ Invalid selection.**', ephemeral: true });
+            }
+
+            const modal = new ModalBuilder()
+                .setCustomId(`whisper_modal_${value}`)
+                .setTitle('WHISPER');
+
+            const target = new TextInputBuilder()
+                .setCustomId('whisper_target_id')
+                .setLabel('TARGET USER ID')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const message = new TextInputBuilder()
+                .setCustomId('whisper_message')
+                .setLabel('MESSAGE CONTENT')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(target),
+                new ActionRowBuilder().addComponents(message)
+            );
+
+            return interaction.showModal(modal);
+        }
+
+        if (interaction.isModalSubmit() && (interaction.customId === 'whisper_modal_private' || interaction.customId === 'whisper_modal_public')) {
+            if (!interaction.guild) return safeReply({ content: '**❌ This can only be used in a server.**', ephemeral: true });
+
+            const type = interaction.customId === 'whisper_modal_private' ? 'private' : 'public';
+            const rawId = interaction.fields.getTextInputValue('whisper_target_id');
+            const targetId = normalizeUserId(rawId);
+            const content = interaction.fields.getTextInputValue('whisper_message');
+
+            if (!targetId || targetId.length < 15 || targetId.length > 25) {
+                return safeReply({ content: '**❌ Invalid user ID.**', ephemeral: true });
+            }
+
+            const member = await interaction.guild.members.fetch(targetId).catch(() => null);
+            if (!member) {
+                return safeReply({ content: '**❌ User not found in this server.**', ephemeral: true });
+            }
+
+            const secretId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+            client.whisperSecrets.set(secretId, {
+                targetId,
+                content: String(content || ''),
+                createdBy: interaction.user.id,
+                createdAt: Date.now()
+            });
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`whisper_read_${secretId}`)
+                    .setLabel('Read Message')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            const mentionLine = `**we have secret message to ${member}, you only the one who can see it 🤫**`;
+
+            if (type === 'public') {
+                const ch = await interaction.guild.channels.fetch('1462025794481164461').catch(() => null);
+                if (!ch || ch.type !== ChannelType.GuildText) {
+                    return safeReply({ content: '**❌ Public whisper channel not found.**', ephemeral: true });
+                }
+                await ch.send({ content: mentionLine, components: [row] }).catch(() => null);
+                return safeReply({ content: '**✅ Public whisper sent.**', ephemeral: true });
+            }
+
+            await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
+            return safeReply({ content: '**✅ Private whisper sent.**', ephemeral: true });
+        }
+
+        if (interaction.isButton() && String(interaction.customId || '').startsWith('whisper_read_')) {
+            const secretId = String(interaction.customId).slice('whisper_read_'.length);
+            const secret = client.whisperSecrets.get(secretId);
+            if (!secret) return safeReply({ content: '**❌ This whisper no longer exists.**', ephemeral: true });
+
+            if (interaction.user.id !== secret.targetId) {
+                return safeReply({ content: '**❌ This whisper is not for you.**', ephemeral: true });
+            }
+
+            const msg = sanitizeWhisper(secret.content);
+            return safeReply({ content: `**${msg || 'Empty message.'}**`, ephemeral: true });
         }
 
         // --- 🧠 CUSTOM REPLIES MODAL SUBMIT ---
