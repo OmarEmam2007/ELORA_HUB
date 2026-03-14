@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, escapeMarkdown } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder } = require('discord.js');
 const ModSettings = require('../../models/ModSettings');
 const ModLog = require('../../models/ModLog');
 const GuildSecurityConfig = require('../../models/GuildSecurityConfig');
@@ -1258,46 +1258,53 @@ module.exports = {
         }
 
         if (interaction.isStringSelectMenu() && interaction.customId === 'whisper_type_select') {
-            const value = interaction.values?.[0];
-            if (value !== 'private' && value !== 'public') {
+            const type = interaction.values?.[0];
+            if (type !== 'private' && type !== 'public') {
                 return safeReply({ content: '**❌ Invalid selection.**', ephemeral: true });
             }
 
+            const userSelect = new UserSelectMenuBuilder()
+                .setCustomId(`whisper_user_select_${type}`)
+                .setPlaceholder('Select the target user')
+                .setMinValues(1)
+                .setMaxValues(1);
+
+            const row = new ActionRowBuilder().addComponents(userSelect);
+
+            return safeReply({
+                content: `**Select the user you want to send a ${type} whisper to:**`,
+                components: [row],
+                ephemeral: true
+            });
+        }
+
+        if (interaction.isUserSelectMenu() && interaction.customId.startsWith('whisper_user_select_')) {
+            const type = interaction.customId.split('_').pop();
+            const targetUserId = interaction.values[0];
+
             const modal = new ModalBuilder()
-                .setCustomId(`whisper_modal_${value}`)
-                .setTitle('WHISPER');
+                .setCustomId(`whisper_modal_${type}_${targetUserId}`)
+                .setTitle('WHISPER MESSAGE');
 
-            const target = new TextInputBuilder()
-                .setCustomId('whisper_target_id')
-                .setLabel('TARGET USER ID')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-
-            const message = new TextInputBuilder()
+            const messageInput = new TextInputBuilder()
                 .setCustomId('whisper_message')
                 .setLabel('MESSAGE CONTENT')
                 .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('Enter your secret message here...')
                 .setRequired(true);
 
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(target),
-                new ActionRowBuilder().addComponents(message)
-            );
+            modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
 
             return interaction.showModal(modal);
         }
 
-        if (interaction.isModalSubmit() && (interaction.customId === 'whisper_modal_private' || interaction.customId === 'whisper_modal_public')) {
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('whisper_modal_')) {
             if (!interaction.guild) return safeReply({ content: '**❌ This can only be used in a server.**', ephemeral: true });
 
-            const type = interaction.customId === 'whisper_modal_private' ? 'private' : 'public';
-            const rawId = interaction.fields.getTextInputValue('whisper_target_id');
-            const targetId = normalizeUserId(rawId);
+            const parts = interaction.customId.split('_');
+            const type = parts[2]; // 'private' or 'public'
+            const targetId = parts[3];
             const content = interaction.fields.getTextInputValue('whisper_message');
-
-            if (!targetId || targetId.length < 15 || targetId.length > 25) {
-                return safeReply({ content: '**❌ Invalid user ID.**', ephemeral: true });
-            }
 
             const member = await interaction.guild.members.fetch(targetId).catch(() => null);
             if (!member) {
@@ -1327,17 +1334,17 @@ module.exports = {
                     return safeReply({ content: '**❌ Public whisper channel not found.**', ephemeral: true });
                 }
                 await ch.send({ content: mentionLine, components: [row] }).catch(() => null);
-                return safeReply({ content: '**✅ Public whisper sent.**', ephemeral: true });
-            }
-
-            // Private: Try DM first
-            try {
-                await member.send({ content: mentionLine, components: [row] });
-                safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
-            } catch (dmError) {
-                // Fallback to channel if DMs are closed
-                await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
-                safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+                safeReply({ content: '**✅ Public whisper sent.**', ephemeral: true });
+            } else {
+                // Private: Try DM first
+                try {
+                    await member.send({ content: mentionLine, components: [row] });
+                    safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
+                } catch (dmError) {
+                    // Fallback to channel if DMs are closed
+                    await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
+                    safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+                }
             }
 
             // Log to specified channel: 1482523605882638427
@@ -1364,6 +1371,7 @@ module.exports = {
             } catch (logErr) {
                 console.error('Whisper Log Error:', logErr);
             }
+            return;
         }
 
         if (interaction.isButton() && String(interaction.customId || '').startsWith('whisper_read_')) {
