@@ -185,7 +185,9 @@ module.exports = {
         const sanitizeWhisper = (input) => {
             const raw = String(input || '').trim();
             const esc = typeof escapeMarkdown === 'function' ? escapeMarkdown(raw) : raw.replace(/\*/g, '\\*').replace(/_/g, '\\_').replace(/`/g, '\\`');
-            return esc.length > 3500 ? `${esc.slice(0, 3500)}…` : esc;
+            // Discord ephemeral messages have a 2000 character limit. 
+            // We truncate to 1950 to be safe and account for bold formatting.
+            return esc.length > 1950 ? `${esc.slice(0, 1950)}…` : esc;
         };
 
         const normalizeUserId = (raw) => String(raw || '').trim().replace(/[^0-9]/g, '');
@@ -1331,11 +1333,36 @@ module.exports = {
             // Private: Try DM first
             try {
                 await member.send({ content: mentionLine, components: [row] });
-                return safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
+                safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
             } catch (dmError) {
                 // Fallback to channel if DMs are closed
                 await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
-                return safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+                safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+            }
+
+            // Log to specified channel: 1482523605882638427
+            try {
+                const logChannelId = '1482523605882638427';
+                const logChannel = await interaction.guild.channels.fetch(logChannelId).catch(() => null);
+                if (logChannel) {
+                    const logEmbed = new EmbedBuilder()
+                        .setColor('#FFFFFF')
+                        .setTitle('**🕵️ Whisper Log**')
+                        .addFields(
+                            { name: '**From**', value: `**${interaction.user} (${interaction.user.id})**`, inline: true },
+                            { name: '**To**', value: `**${member} (${member.id})**`, inline: true },
+                            { name: '**Type**', value: `**${type.toUpperCase()}**`, inline: true },
+                            { name: '**Content**', value: `**${content.slice(0, 1024) || 'Empty'}**` }
+                        )
+                        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+                        .setImage(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                        .setTimestamp()
+                        .setFooter({ text: 'Whisper System', iconURL: interaction.guild.iconURL() });
+
+                    await logChannel.send({ embeds: [logEmbed] }).catch(() => null);
+                }
+            } catch (logErr) {
+                console.error('Whisper Log Error:', logErr);
             }
         }
 
