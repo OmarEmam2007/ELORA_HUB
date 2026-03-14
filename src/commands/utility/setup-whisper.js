@@ -18,10 +18,11 @@ module.exports = {
     async execute(interaction, client) {
         const channel = interaction.options.getChannel('channel', true);
 
+        await interaction.deferReply({ ephemeral: true });
+
         const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/555.png'));
 
         const embed = new EmbedBuilder()
-            .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
             .setImage('attachment://555.png');
 
         const select = new StringSelectMenuBuilder()
@@ -43,6 +44,11 @@ module.exports = {
         const row = new ActionRowBuilder().addComponents(select);
 
         await channel.send({ files: [banner], embeds: [embed], components: [row] });
-        await interaction.reply({ content: `**✅ Whisper panel deployed in ${channel}.**`, ephemeral: true });
+
+        try {
+            await interaction.deleteReply();
+        } catch (_) {
+            // ignore
+        }
     }
 };
