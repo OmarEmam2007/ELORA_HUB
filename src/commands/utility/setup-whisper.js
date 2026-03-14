@@ -20,10 +20,7 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/555.png'));
-
-        const embed = new EmbedBuilder()
-            .setImage('attachment://555.png');
+        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/555.png'), { name: 'whisper.png' });
 
         const select = new StringSelectMenuBuilder()
             .setCustomId('whisper_type_select')
@@ -43,7 +40,7 @@ module.exports = {
 
         const row = new ActionRowBuilder().addComponents(select);
 
-        await channel.send({ files: [banner], embeds: [embed], components: [row] });
+        await channel.send({ files: [banner], components: [row] });
 
         try {
             await interaction.deleteReply();
