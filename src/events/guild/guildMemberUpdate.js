@@ -29,8 +29,8 @@ module.exports = {
                             .setColor('#ff73fa')
                             .setTitle('💎 New Server Booster!')
                             .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-                            .setDescription(`شكراً لك يا ${newMember} على دعم السيرفر بعمل بوست! 💖\nلقد حصلت على رتبة <@&${BOOSTER_ROLE_ID}> تلقائياً.`)
-                            .setImage('https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXpueXF4ZzR6NHJndXpueXF4ZzR6NHJndXpueXF4ZzR6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKVUn7iM8FMEU24/giphy.gif') // اختيار صورة مناسبة للبوست
+                            .setDescription(`Thank you ${newMember} for boosting the server! 💖\nYou have automatically received the <@&${BOOSTER_ROLE_ID}> role.`)
+                            .setImage('https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXpueXF4ZzR6NHJndXpueXF4ZzR6NHJndXpueXF4ZzR6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKVUn7iM8FMEU24/giphy.gif')
                             .setTimestamp();
 
                         await channel.send({ content: `${newMember}`, embeds: [embed] }).catch(err => console.error('Error sending booster message:', err));

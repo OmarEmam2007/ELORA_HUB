@@ -4,11 +4,11 @@ const ModSettings = require('../../models/ModSettings');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('boost')
-        .setDescription('ضبط قناة إشعارات البوستر')
+        .setDescription('Setup the booster notification channel')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addChannelOption(option =>
             option.setName('channel')
-                .setDescription('القناة التي سيتم إرسال إشعارات البوست فيها')
+                .setDescription('The channel to send booster notifications in')
                 .setRequired(true)
         ),
     async execute(interaction) {
@@ -24,8 +24,8 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor('#ff73fa')
-            .setTitle('✅ تم الضبط بنجاح')
-            .setDescription(`سيتم الآن إرسال إشعارات السيرفر بوست في قناة ${channel}.\nأي شخص يقوم بعمل بوست سيحصل على الرتبة تلقائياً وسيتم الترحيب به هنا.`)
+            .setTitle('✅ Setup Successful')
+            .setDescription(`Booster notifications will now be sent to ${channel}.\nNew boosters will automatically receive the role and a welcome message here.`)
             .setTimestamp();
 
         return interaction.reply({ embeds: [embed] });
