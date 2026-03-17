@@ -8,6 +8,9 @@ const CustomReply = require('../../models/CustomReply');
 const THEME = require('../../utils/theme');
 const HelpCommand = require('../../commands/utility/help');
 const SettingsCommand = require('../../commands/utility/settings');
+const User = require('../../models/User');
+const MarriageProposal = require('../../models/MarriageProposal');
+const { withTransaction } = require('../../services/marriageService');
 
 const TVCP = {
     PREFIX: 'tvcp_',
@@ -450,6 +453,122 @@ module.exports = {
 
         try {
         if (interaction.isButton()) {
+            // --- 💍 MARRIAGE PROPOSALS (Persistent Buttons) ---
+            if (interaction.customId && (interaction.customId.startsWith('marry_accept_') || interaction.customId.startsWith('marry_decline_'))) {
+                const isAccept = interaction.customId.startsWith('marry_accept_');
+                const proposalId = String(interaction.customId).slice((isAccept ? 'marry_accept_' : 'marry_decline_').length);
+
+                await interaction.deferUpdate().catch(() => { });
+
+                const proposal = await MarriageProposal.findById(proposalId).exec().catch(() => null);
+                if (!proposal) {
+                    return safeReply({ content: '❌ This proposal no longer exists.', ephemeral: true });
+                }
+
+                if (proposal.guildId !== interaction.guildId) {
+                    return safeReply({ content: '❌ This proposal is not for this server.', ephemeral: true });
+                }
+
+                if (proposal.status !== 'pending') {
+                    return safeReply({ content: 'ℹ️ This proposal is already resolved.', ephemeral: true });
+                }
+
+                if (interaction.user.id !== proposal.targetId) {
+                    return safeReply({ content: 'This button is not for you.', ephemeral: true });
+                }
+
+                const disableRow = () => {
+                    const row = new ActionRowBuilder();
+                    row.addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`marry_accept_${proposalId}`)
+                            .setLabel('Accept')
+                            .setStyle(ButtonStyle.Success)
+                            .setDisabled(true),
+                        new ButtonBuilder()
+                            .setCustomId(`marry_decline_${proposalId}`)
+                            .setLabel('Decline')
+                            .setStyle(ButtonStyle.Danger)
+                            .setDisabled(true)
+                    );
+                    return row;
+                };
+
+                const requesterId = proposal.requesterId;
+                const targetId = proposal.targetId;
+
+                if (!interaction.guild) {
+                    return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
+                }
+
+                const requesterUser = await client.users.fetch(requesterId).catch(() => null);
+                const targetUser = await client.users.fetch(targetId).catch(() => null);
+
+                if (!isAccept) {
+                    await MarriageProposal.updateOne(
+                        { _id: proposalId, status: 'pending' },
+                        { $set: { status: 'declined', resolvedAt: new Date(), resolvedBy: interaction.user.id } }
+                    ).exec().catch(() => { });
+
+                    const declined = new EmbedBuilder()
+                        .setColor('#FF4D6D')
+                        .setTitle('💔 Proposal Declined')
+                        .setDescription(`<@${targetId}> has declined the proposal from <@${requesterId}>.`)
+                        .setThumbnail(requesterUser?.displayAvatarURL?.({ dynamic: true }) || null)
+                        .setFooter(THEME.FOOTER)
+                        .setTimestamp();
+
+                    await interaction.message.edit({ embeds: [declined], components: [disableRow()] }).catch(() => { });
+                    return;
+                }
+
+                try {
+                    const marriedAt = new Date();
+
+                    await withTransaction(async (session) => {
+                        const freshRequester = await User.findOne({ userId: requesterId, guildId: interaction.guildId }).session(session || null).exec();
+                        const freshTarget = await User.findOne({ userId: targetId, guildId: interaction.guildId }).session(session || null).exec();
+
+                        if (!freshRequester || !freshTarget) throw new Error('Missing user documents');
+                        if (freshRequester.partnerId) throw new Error('Requester already married');
+                        if (freshTarget.partnerId) throw new Error('Target already married');
+
+                        await User.updateOne(
+                            { userId: requesterId, guildId: interaction.guildId },
+                            { $set: { partnerId: targetId, marryDate: marriedAt }, $inc: { marriageCount: 1 } },
+                            { session }
+                        ).exec();
+
+                        await User.updateOne(
+                            { userId: targetId, guildId: interaction.guildId },
+                            { $set: { partnerId: requesterId, marryDate: marriedAt }, $inc: { marriageCount: 1 } },
+                            { session }
+                        ).exec();
+
+                        await MarriageProposal.updateOne(
+                            { _id: proposalId, status: 'pending' },
+                            { $set: { status: 'accepted', resolvedAt: new Date(), resolvedBy: interaction.user.id } },
+                            { session }
+                        ).exec();
+                    });
+
+                    const celebrate = new EmbedBuilder()
+                        .setColor('#2DFFB3')
+                        .setTitle('👑 Marriage Sealed')
+                        .setDescription(`💍 Congratulations! <@${requesterId}> and <@${targetId}> are now officially married!\n\nMay your saga be eternal. 💖`)
+                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/833/833472.png')
+                        .setImage('https://media.tenor.com/2hZlWvZ8c4QAAAAC/wedding-anime.gif')
+                        .setFooter(THEME.FOOTER)
+                        .setTimestamp();
+
+                    await interaction.message.edit({ embeds: [celebrate], components: [disableRow()] }).catch(() => { });
+                    return;
+                } catch (err) {
+                    console.error('[MARRIAGE] Accept error:', err);
+                    return safeReply({ content: '❌ Failed to finalize this marriage. Make sure both users are still single and try again.', ephemeral: true });
+                }
+            }
+
             // --- 🎛️ TEMPVOICE CONTROL PANEL (TVCP) BUTTONS ---
             if (interaction.customId && interaction.customId.startsWith(TVCP.PREFIX)) {
                 if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });

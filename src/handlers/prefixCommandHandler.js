@@ -77,6 +77,7 @@ async function handlePrefixCommand(message, client) {
     const eloraPrefixMatch = text.match(/^elora\s+(.+)/i);
     const legacyPrefix = client?.config?.prefix ? String(client.config.prefix) : null;
     const bangPrefix = '!';
+    const dotPrefix = '.';
 
     let args = [];
     let commandName = null;
@@ -92,6 +93,12 @@ async function handlePrefixCommand(message, client) {
         }
     } else if (text.startsWith(bangPrefix)) {
         const content = text.slice(bangPrefix.length).trim();
+        if (content) {
+            args = content.split(/\s+/).filter(Boolean);
+            commandName = String(args.shift() || '').toLowerCase();
+        }
+    } else if (text.startsWith(dotPrefix)) {
+        const content = text.slice(dotPrefix.length).trim();
         if (content) {
             args = content.split(/\s+/).filter(Boolean);
             commandName = String(args.shift() || '').toLowerCase();

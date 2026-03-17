@@ -11,7 +11,14 @@ const userSchema = new mongoose.Schema({
     voiceSessionStart: { type: Number, default: 0 },
     lastMessageTimestamp: { type: Number, default: 0 }, // For XP cooldown
     antiSwearWarningsCount: { type: Number, default: 0 },
-    antiSwearLastAt: { type: Date, default: null }
+    antiSwearLastAt: { type: Date, default: null },
+
+    // --- Marriage & Divorce System ---
+    partnerId: { type: String, default: null }, // Discord ID of the current partner
+    marriageCount: { type: Number, default: 0 }, // Total number of marriages
+    divorceCount: { type: Number, default: 0 }, // Total number of divorces
+    marryDate: { type: Date, default: null }, // Date of current marriage
+    lastDivorceDate: { type: Date, default: null } // Date of last divorce, for cooldown
 });
 
 userSchema.index({ userId: 1, guildId: 1 }, { unique: true });
