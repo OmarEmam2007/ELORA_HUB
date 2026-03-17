@@ -137,6 +137,28 @@ Displays a user’s social profile card: marriage status, relationship age, stat
 
 ---
 
+## 4) `.reset @user` (Admin Only)
+
+**Purpose**
+
+Resets (wipes) a user’s saved profile for this server.
+
+**Usage**
+
+- `.reset @user`
+
+**Permissions**
+
+- **Administrator only**
+
+**What it does**
+
+- Deletes the user’s profile document from MongoDB (so it will be recreated with defaults when they use commands again).
+- If the user was married, it also clears their partner’s `partnerId` and `marryDate` to avoid broken marriages.
+- Cancels any **pending** marriage proposals that involve that user.
+
+---
+
 ## Notes (MongoDB Transactions)
 
 - The system uses Mongoose transactions when MongoDB supports it (replica set / mongos).
