@@ -1397,6 +1397,28 @@ module.exports = {
             });
         }
 
+        if (interaction.isStringSelectMenu() && interaction.customId === 'ideas_select') {
+            const selected = interaction.values?.[0];
+            if (selected !== 'improve_server' && selected !== 'improve_bot') {
+                return safeReply({ content: '❌ Invalid selection.', ephemeral: true });
+            }
+
+            const modal = new ModalBuilder()
+                .setCustomId(`ideas_modal_${selected}`)
+                .setTitle('Submit Your Advice');
+
+            const input = new TextInputBuilder()
+                .setCustomId('ideas_text')
+                .setLabel('Your suggestion')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('Write your detailed advice here...')
+                .setRequired(true)
+                .setMaxLength(1800);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            return interaction.showModal(modal);
+        }
+
         if (interaction.isUserSelectMenu() && interaction.customId.startsWith('whisper_user_select_')) {
             const type = interaction.customId.split('_').pop();
             const targetUserId = interaction.values[0];
@@ -1457,40 +1479,49 @@ module.exports = {
             } else {
                 // Private: Try DM first
                 try {
-                    await member.send({ content: mentionLine, components: [row] });
-                    safeReply({ content: `**✅ Private whisper sent to ${member.user.tag}'s DMs.**`, ephemeral: true });
-                } catch (dmError) {
-                    // Fallback to channel if DMs are closed
-                    await interaction.channel?.send({ content: mentionLine, components: [row] }).catch(() => null);
-                    safeReply({ content: `**⚠️ Couldn't DM ${member.user.tag} (DMs closed). Sent in channel instead.**`, ephemeral: true });
+                    const user = await client.users.fetch(targetId);
+                    await user.send({ content: mentionLine, components: [row] });
+                    safeReply({ content: '**✅ Private whisper sent via DM.**', ephemeral: true });
+                } catch (_) {
+                    safeReply({ content: '**❌ Failed to DM the user.**', ephemeral: true });
                 }
             }
+        }
 
-            // Log to specified channel: 1482523605882638427
-            try {
-                const logChannelId = '1482523605882638427';
-                const logChannel = await interaction.guild.channels.fetch(logChannelId).catch(() => null);
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor('#FFFFFF')
-                        .setTitle('**🕵️ Whisper Log**')
-                        .addFields(
-                            { name: '**From**', value: `**${interaction.user} (${interaction.user.id})**`, inline: true },
-                            { name: '**To**', value: `**${member} (${member.id})**`, inline: true },
-                            { name: '**Type**', value: `**${type.toUpperCase()}**`, inline: true },
-                            { name: '**Content**', value: `**${content.slice(0, 1024) || 'Empty'}**` }
-                        )
-                        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-                        .setImage(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
-                        .setTimestamp()
-                        .setFooter({ text: 'Whisper System', iconURL: interaction.guild.iconURL() });
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('ideas_modal_')) {
+            if (!interaction.guild) return safeReply({ content: '❌ This can only be used in a server.', ephemeral: true });
 
-                    await logChannel.send({ embeds: [logEmbed] }).catch(() => null);
-                }
-            } catch (logErr) {
-                console.error('Whisper Log Error:', logErr);
+            const kind = String(interaction.customId).slice('ideas_modal_'.length);
+            if (kind !== 'improve_server' && kind !== 'improve_bot') {
+                return safeReply({ content: '❌ Invalid submission type.', ephemeral: true });
             }
-            return;
+
+            const suggestion = interaction.fields.getTextInputValue('ideas_text');
+
+            const kindLabel = kind === 'improve_server'
+                ? 'Advice on improving the server'
+                : 'Advice on improving the bot';
+
+            const ownerId = '1085496418745200730';
+            const owner = await client.users.fetch(ownerId).catch(() => null);
+
+            const embed = new EmbedBuilder()
+                .setColor(THEME.COLORS.ACCENT)
+                .setTitle('🧠 New Advice Submission')
+                .setDescription(suggestion && suggestion.length > 1900 ? `${suggestion.slice(0, 1900)}…` : (suggestion || ''))
+                .addFields(
+                    { name: '👤 From', value: `${interaction.user.tag} (${interaction.user.id})`, inline: false },
+                    { name: '📌 Type', value: kindLabel, inline: true },
+                    { name: '🏰 Server', value: `${interaction.guild.name} (${interaction.guild.id})`, inline: true }
+                )
+                .setFooter(THEME.FOOTER)
+                .setTimestamp();
+
+            if (owner) {
+                await owner.send({ embeds: [embed] }).catch(() => { });
+            }
+
+            return safeReply({ content: '✅ Your advice has been submitted. Thank you!', ephemeral: true });
         }
 
         if (interaction.isButton() && String(interaction.customId || '').startsWith('whisper_read_')) {
@@ -1551,8 +1582,8 @@ module.exports = {
             console.error(error);
             await safeReply({ content: 'Error executing command!', ephemeral: true });
         }
-        }
-        catch (e) {
+
+        } catch (e) {
             console.error('interactionCreate handler error:', e);
         }
     }
