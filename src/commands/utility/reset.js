@@ -39,16 +39,6 @@ module.exports = {
             return message.reply({ embeds: [embed] });
         }
 
-        if (targetId === message.author.id) {
-            const embed = new EmbedBuilder()
-                .setColor(THEME.COLORS.WARNING)
-                .setTitle('🧹 Reset Profile')
-                .setDescription('You cannot reset your own profile with this command.')
-                .setFooter(THEME.FOOTER)
-                .setTimestamp();
-            return message.reply({ embeds: [embed] });
-        }
-
         const guildId = message.guild.id;
 
         try {
