@@ -7,22 +7,40 @@ module.exports = {
     name: 'guildMemberUpdate',
     async execute(oldMember, newMember) {
         const guild = newMember.guild;
+        const DEBUG = process.env.BOOST_DEBUG === '1';
 
         // التحقق من حالة البوست (هل بدأ بعمل بوست الآن؟)
         const oldStatus = oldMember.premiumSince;
         const newStatus = newMember.premiumSince;
 
-        if (!oldStatus && newStatus) {
-            // الشخص عمل بوست الآن
+        const isBoostingNow = Boolean(newStatus);
+        const wasBoostingBefore = Boolean(oldStatus);
+        const isNewBoost = !wasBoostingBefore && isBoostingNow;
+        const missingBoosterRole = isBoostingNow && !newMember.roles.cache.has(BOOSTER_ROLE_ID);
+
+        if (DEBUG) {
+            console.log(
+                `[BOOST] guildMemberUpdate user=${newMember.user?.tag || newMember.id} ` +
+                `oldPremium=${oldStatus ? 'yes' : 'no'} newPremium=${newStatus ? 'yes' : 'no'} ` +
+                `isNewBoost=${isNewBoost} missingRole=${missingBoosterRole}`
+            );
+        }
+
+        // If they are not boosting, nothing to do.
+        if (!isBoostingNow) return;
+
+        // Main path: they just boosted OR we detected they are boosting but don't have the role.
+        if (isNewBoost || missingBoosterRole) {
             try {
                 // 1. إعطاء الرتبة
                 if (!newMember.roles.cache.has(BOOSTER_ROLE_ID)) {
                     await newMember.roles.add(BOOSTER_ROLE_ID).catch(err => console.error('Error adding booster role:', err));
+                    if (DEBUG) console.log('[BOOST] booster role add attempted');
                 }
 
                 // 2. إرسال الإشعار في القناة المحددة
                 const settings = await ModSettings.findOne({ guildId: guild.id });
-                if (settings && settings.boosterChannelId) {
+                if (isNewBoost && settings && settings.boosterChannelId) {
                     const channel = await guild.channels.fetch(settings.boosterChannelId).catch(() => null);
                     if (channel) {
                         const embed = new EmbedBuilder()
@@ -35,6 +53,8 @@ module.exports = {
 
                         await channel.send({ content: `${newMember}`, embeds: [embed] }).catch(err => console.error('Error sending booster message:', err));
                     }
+                } else if (DEBUG && !isNewBoost) {
+                    console.log('[BOOST] no announcement sent (not a new boost event)');
                 }
             } catch (error) {
                 console.error('Error in guildMemberUpdate (Booster Logic):', error);
