@@ -1447,6 +1447,8 @@ module.exports = {
             const targetId = parts[3];
             const content = interaction.fields.getTextInputValue('whisper_message');
 
+            const WHISPER_LOG_CHANNEL_ID = '1482523605882638427';
+
             const member = await interaction.guild.members.fetch(targetId).catch(() => null);
             if (!member) {
                 return safeReply({ content: '**❌ User not found in this server.**', ephemeral: true });
@@ -1468,6 +1470,30 @@ module.exports = {
             );
 
             const mentionLine = `**we have secret message to ${member}, you only the one who can see it 🤫**`;
+
+            try {
+                const logChannel = await interaction.guild.channels.fetch(WHISPER_LOG_CHANNEL_ID).catch(() => null);
+                if (logChannel && logChannel.isTextBased?.()) {
+                    const preview = String(content || '').trim();
+                    const trimmed = preview.length > 800 ? `${preview.slice(0, 800)}…` : preview;
+                    const logEmbed = new EmbedBuilder()
+                        .setColor('#ff73fa')
+                        .setTitle('🤫 Whisper Created')
+                        .addFields(
+                            { name: 'Type', value: type === 'public' ? 'Public' : 'Private (DM)', inline: true },
+                            { name: 'From', value: `${interaction.user.tag} (\`${interaction.user.id}\`)`, inline: false },
+                            { name: 'To', value: `${member.user.tag} (\`${targetId}\`)`, inline: false },
+                            { name: 'Content', value: trimmed ? `\`\`\`${trimmed}\`\`\`` : '`(empty)`', inline: false }
+                        )
+                        .setTimestamp();
+
+                    await logChannel.send({ embeds: [logEmbed] }).catch((e) => {
+                        console.error('[WHISPER] failed to send log:', e);
+                    });
+                }
+            } catch (e) {
+                console.error('[WHISPER] log error:', e);
+            }
 
             if (type === 'public') {
                 const ch = await interaction.guild.channels.fetch('1462025794481164461').catch(() => null);
