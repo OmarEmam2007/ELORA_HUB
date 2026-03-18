@@ -1476,15 +1476,18 @@ module.exports = {
                 if (logChannel && logChannel.isTextBased?.()) {
                     const preview = String(content || '').trim();
                     const trimmed = preview.length > 800 ? `${preview.slice(0, 800)}…` : preview;
+                    const thumb = interaction.user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || null;
                     const logEmbed = new EmbedBuilder()
-                        .setColor('#ff73fa')
-                        .setTitle('🤫 Whisper Created')
+                        .setColor(THEME.COLORS.ACCENT)
+                        .setTitle('🔒 Whisper Log')
                         .addFields(
-                            { name: 'Type', value: type === 'public' ? 'Public' : 'Private (DM)', inline: true },
-                            { name: 'From', value: `${interaction.user.tag} (\`${interaction.user.id}\`)`, inline: false },
-                            { name: 'To', value: `${member.user.tag} (\`${targetId}\`)`, inline: false },
-                            { name: 'Content', value: trimmed ? `\`\`\`${trimmed}\`\`\`` : '`(empty)`', inline: false }
+                            { name: 'From', value: `${interaction.user} (\`${interaction.user.id}\`)`, inline: true },
+                            { name: 'To', value: `${member} (\`${targetId}\`)`, inline: true },
+                            { name: 'Type', value: type === 'public' ? 'PUBLIC' : 'PRIVATE', inline: true },
+                            { name: 'Content', value: trimmed || '(empty)', inline: false }
                         )
+                        .setThumbnail(thumb)
+                        .setFooter(THEME.FOOTER)
                         .setTimestamp();
 
                     await logChannel.send({ embeds: [logEmbed] }).catch((e) => {
