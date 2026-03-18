@@ -10,6 +10,62 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot || !message.guild) return;
 
+        // --- Music Links Only Channel ---
+        try {
+            const MUSIC_LINKS_ONLY_CHANNEL_ID = '1483817618291818536';
+            if (message.channelId === MUSIC_LINKS_ONLY_CHANNEL_ID) {
+                const hasAttachments = Boolean(message.attachments && message.attachments.size > 0);
+                if (hasAttachments) return;
+
+                const content = String(message.content || '').trim();
+                if (!content) {
+                    await message.delete().catch(() => { });
+                    return;
+                }
+
+                const urlMatches = content.match(/https?:\/\/\S+/gi) || [];
+                if (!urlMatches.length) {
+                    await message.delete().catch(() => { });
+                    return;
+                }
+
+                const allowedHosts = new Set([
+                    'youtube.com', 'www.youtube.com', 'youtu.be', 'music.youtube.com', 'm.youtube.com',
+                    'open.spotify.com', 'spotify.com',
+                    'soundcloud.com', 'www.soundcloud.com', 'on.soundcloud.com',
+                    'music.apple.com',
+                    'deezer.com', 'www.deezer.com',
+                    'tidal.com', 'www.tidal.com',
+                    'bandcamp.com', 'www.bandcamp.com',
+                    'audiomack.com', 'www.audiomack.com',
+                    'mixcloud.com', 'www.mixcloud.com',
+                    'vimeo.com', 'www.vimeo.com',
+                    'twitch.tv', 'www.twitch.tv'
+                ]);
+
+                const allUrlsAllowed = urlMatches.every((u) => {
+                    try {
+                        const host = new URL(u).hostname.toLowerCase();
+                        return allowedHosts.has(host);
+                    } catch (_) {
+                        return false;
+                    }
+                });
+
+                const remainingText = content.replace(/https?:\/\/\S+/gi, '').replace(/\s+/g, '').trim();
+                const hasNonLinkText = Boolean(remainingText);
+
+                if (!allUrlsAllowed || hasNonLinkText) {
+                    await message.delete().catch(() => { });
+                    return;
+                }
+
+                return;
+            }
+        } catch (_) {
+            // ignore
+        }
+
         // --- Windows Toast Notifications (Owner Mentions / Replies) ---
         try {
             const TARGET_GUILD_ID = '1461451253606383810';
