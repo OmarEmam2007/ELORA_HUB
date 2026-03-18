@@ -14,8 +14,11 @@ module.exports = {
         try {
             const TARGET_GUILD_ID = '1461451253606383810';
             const TARGET_USER_ID = '1085496418745200730';
+            const DEBUG = process.env.WIN_NOTIFY_DEBUG === '1';
 
             if (message.guild.id === TARGET_GUILD_ID) {
+                let shouldNotify = true;
+
                 // Skip notifications if the target user is currently online/in Discord.
                 // This requires Presence Intent enabled in the Developer Portal.
                 try {
@@ -24,10 +27,19 @@ module.exports = {
                     if (status && status !== 'offline') {
                         // online / idle / dnd => user is in Discord, no Windows toast.
                         // If status is missing, we fall back to notifying.
-                        return;
+                        shouldNotify = false;
+                        if (DEBUG) {
+                            console.log(`[WIN_NOTIFY] skipped: target status is ${status}`);
+                        }
+                    }
+                    if (DEBUG && shouldNotify) {
+                        console.log(`[WIN_NOTIFY] target status: ${status || 'unknown'} (will notify)`);
                     }
                 } catch (_) {
                     // ignore and continue
+                    if (DEBUG) {
+                        console.log('[WIN_NOTIFY] target presence fetch failed (will notify)');
+                    }
                 }
 
                 let type = null;
@@ -45,12 +57,20 @@ module.exports = {
                     }
                 }
 
-                if (type) {
+                if (DEBUG && !type) {
+                    console.log('[WIN_NOTIFY] skipped: no mention/reply trigger');
+                }
+
+                if (type && shouldNotify) {
                     const mentionRegex = new RegExp(`<@!?${TARGET_USER_ID}>`, 'g');
                     let body = String(message.content || '').replace(mentionRegex, '').trim();
                     if (!body) body = 'Sent a message!';
 
                     const iconUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+                    if (DEBUG) {
+                        console.log(`[WIN_NOTIFY] send: type=${type} from=${message.author.tag} body=${JSON.stringify(body)}`);
+                    }
 
                     notifyWindowsToast({
                         type,
@@ -59,6 +79,12 @@ module.exports = {
                         body,
                         iconUrl,
                     }).catch(() => { });
+                } else if (type && !shouldNotify && DEBUG) {
+                    console.log(`[WIN_NOTIFY] skipped: trigger=${type} but target is not offline`);
+                }
+            } else {
+                if (process.env.WIN_NOTIFY_DEBUG === '1') {
+                    console.log(`[WIN_NOTIFY] skipped: guild mismatch ${message.guild.id}`);
                 }
             }
         } catch (e) {
