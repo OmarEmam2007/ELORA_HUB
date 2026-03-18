@@ -53,3 +53,15 @@ This bot supports prefix commands using:
 
 - **`.profile [@user]`**
   - Shows a social profile card (marriage status, duration, stats, reliability).
+
+## Windows Notifications (Local Machine)
+
+This project can show **native Windows toast notifications** when the bot is running on Windows.
+
+- **Triggers**
+  - Mentioning the owner user id
+  - Replying to a message authored by the owner
+- **Offline-only behavior**
+  - Notifications are **suppressed when the owner is online** (presence status is not `offline`).
+
+**Important:** You must enable the **Presence Intent** in the Discord Developer Portal for your bot, otherwise presence status may be missing.

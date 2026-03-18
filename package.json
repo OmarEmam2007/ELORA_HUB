@@ -15,7 +15,8 @@
     "discord.js": "^14.16.3",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "mongoose": "^9.1.4"
+    "mongoose": "^9.1.4",
+    "node-notifier": "^10.0.1"
   },
   "engines": {
     "node": ">=18.0.0"

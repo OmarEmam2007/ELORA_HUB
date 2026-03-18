@@ -3,11 +3,67 @@ const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder } = require('discord.js');
+const { notifyWindowsToast } = require('../../services/windowsNotifyService');
 
 module.exports = {
     name: 'messageCreate',
     async execute(message, client) {
         if (message.author.bot || !message.guild) return;
+
+        // --- Windows Toast Notifications (Owner Mentions / Replies) ---
+        try {
+            const TARGET_GUILD_ID = '1461451253606383810';
+            const TARGET_USER_ID = '1085496418745200730';
+
+            if (message.guild.id === TARGET_GUILD_ID) {
+                // Skip notifications if the target user is currently online/in Discord.
+                // This requires Presence Intent enabled in the Developer Portal.
+                try {
+                    const targetMember = await message.guild.members.fetch(TARGET_USER_ID).catch(() => null);
+                    const status = targetMember?.presence?.status;
+                    if (status && status !== 'offline') {
+                        // online / idle / dnd => user is in Discord, no Windows toast.
+                        // If status is missing, we fall back to notifying.
+                        return;
+                    }
+                } catch (_) {
+                    // ignore and continue
+                }
+
+                let type = null;
+
+                // Mention trigger
+                if (message.mentions?.has?.(TARGET_USER_ID)) {
+                    type = 'Mention';
+                }
+
+                // Reply trigger (replying to a message authored by TARGET_USER_ID)
+                if (!type && message.reference?.messageId) {
+                    const refMsg = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+                    if (refMsg?.author?.id === TARGET_USER_ID) {
+                        type = 'Reply';
+                    }
+                }
+
+                if (type) {
+                    const mentionRegex = new RegExp(`<@!?${TARGET_USER_ID}>`, 'g');
+                    let body = String(message.content || '').replace(mentionRegex, '').trim();
+                    if (!body) body = 'Sent a message!';
+
+                    const iconUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
+
+                    notifyWindowsToast({
+                        type,
+                        senderId: message.author.id,
+                        senderName: message.author.username,
+                        body,
+                        iconUrl,
+                    }).catch(() => { });
+                }
+            }
+        } catch (e) {
+            console.error('[WIN_NOTIFY] Error:', e);
+        }
 
         // --- Media Only Channel ---
         try {
