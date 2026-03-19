@@ -57,7 +57,7 @@ module.exports = {
             .addOptions(
                 { label: 'ʜᴇ/ʜɪᴍ', value: 'he_him' },
                 { label: toSmallCaps('SHE/HER (UNVERIFIED)'), value: 'she_her' },
-                { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ = ʙᴀɴ', value: 'they_them' }
+                { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ', value: 'they_them' }
             );
 
         const row1 = new ActionRowBuilder().addComponents(ageMenu);
