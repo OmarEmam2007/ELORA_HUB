@@ -46,7 +46,7 @@ module.exports = {
 
     // 📝 Standardized Footers
     FOOTER: {
-        text: 'Sovereign Nexus • Lunar Operations',
+        text: 'Sovereign Nexus • Elora Operations',
         iconURL: 'https://cdn-icons-png.flaticon.com/512/11529/11529141.png'
     },
 

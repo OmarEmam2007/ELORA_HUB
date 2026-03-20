@@ -37,7 +37,7 @@ const HEIST_FALLBACK_RIDDLES = [
         failure_mockery: 'You politely knock on the vault instead of exploiting it. The security daemon adds you to its “cute attempts” playlist and goes back to sleep.'
     },
     {
-        challenge: 'Beneath the lunar skyline, three signals overlap: one in infrared, one in heartbeat, and one in pure debt. Which pattern can convince the vault you were always its rightful owner?',
+        challenge: 'Beneath the Elora skyline, three signals overlap: one in infrared, one in heartbeat, and one in pure debt. Which pattern can convince the vault you were always its rightful owner?',
         solution_keywords: ['infrared', 'heartbeat', 'debt'],
         success_story: 'You sync your crew\'s biometrics with a stolen boardroom recording, forging a perfect echo of the CEO\'s heartbeat. The vault accepts the lie like gospel, peeling itself open to reveal rows of credit columns collapsing in your favor. By sunrise, the city\'s richest ghost is you.',
         failure_mockery: 'You try to fake a heartbeat using drum & bass. The vault flags it as “rhythmically impressive but legally meaningless” and slams the door shut.'
