@@ -1288,6 +1288,9 @@ module.exports = {
                 '1461766723274412126'
             ];
 
+            const TICKET_PARENT_CHANNEL_ID = '1461997428218794099';
+            const TICKET_CATEGORY_ID = '1461484271142174790';
+
             const value = interaction.values?.[0];
             const valid = new Set(['server_problem', 'partnerships', 'girls_verification', 'social_problem', 'other']);
             if (!valid.has(value)) {
@@ -1305,9 +1308,8 @@ module.exports = {
                 return safeEdit({ content: `❌ You already have an open ticket: ${existing}` });
             }
 
-            const parentChannelId = '1461997428218794099';
-            const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
-            const parentId = parentChannel?.parentId || null;
+            const parentChannel = await interaction.guild.channels.fetch(TICKET_PARENT_CHANNEL_ID).catch(() => null);
+            const parentId = TICKET_CATEGORY_ID;
 
             const overwrites = [
                 {
@@ -1386,6 +1388,17 @@ module.exports = {
 
             if (!created) {
                 return safeEdit({ content: '❌ Failed to create ticket channel. Check bot permissions.' });
+            }
+
+            try {
+                const siblings = interaction.guild.channels.cache
+                    .filter((c) => c?.parentId === TICKET_CATEGORY_ID && c?.id !== created.id);
+                const maxPos = siblings.size
+                    ? Math.max(...siblings.map((c) => c.rawPosition ?? c.position ?? 0))
+                    : 0;
+                await created.setPosition(maxPos + 1).catch(() => { });
+            } catch (_) {
+                // ignore
             }
 
             await safeEdit({ content: `✅ Ticket created: ${created}` });
