@@ -1341,14 +1341,28 @@ module.exports = {
                 });
             }
 
+            const permissionOverwrites = Array.from(
+                new Map(overwrites.map((o) => [o.id, o])).values()
+            );
+
             const created = await interaction.guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
                 parent: parentId,
                 topic: `Ticket: ${value} • User: ${interaction.user.tag} (${interaction.user.id})`,
-                permissionOverwrites: overwrites,
+                permissionOverwrites,
                 reason: `Ticket created by ${interaction.user.tag} (${interaction.user.id})`
-            }).catch(() => null);
+            }).catch((e) => {
+                console.error('[TICKET] Failed to create ticket channel:', {
+                    value,
+                    channelName,
+                    parentId,
+                    userId: interaction.user?.id,
+                    guildId: interaction.guild?.id,
+                    error: e
+                });
+                return null;
+            });
 
             if (!created) {
                 return safeEdit({ content: '❌ Failed to create ticket channel. Check bot permissions.' });
