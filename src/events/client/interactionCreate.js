@@ -1320,6 +1320,13 @@ module.exports = {
                 });
             }
 
+            if (value === 'partnerships') {
+                overwrites.push({
+                    id: '1484963266177531986',
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                });
+            }
+
             for (const roleId of STAFF_ROLE_IDS) {
                 overwrites.push({
                     id: roleId,
