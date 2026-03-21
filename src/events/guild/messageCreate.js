@@ -5,10 +5,138 @@ const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
 
+const INCOGNITO_CHANNEL_ID = '1484939016351645808';
+const INCOGNITO_LOGS_CHANNEL_ID = '1484940148994084934';
+const INCOGNITO_WEBHOOK_NAME = 'Incognito Room';
+const INCOGNITO_AVATAR_URL = 'https://singlecolorimage.com/get/808080/128x128';
+
+function randomIncognitoName() {
+    const prefixes = ['User', 'Ghost', 'Shadow', 'Anon', 'Wisp', 'Null'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const num = Math.floor(Math.random() * 900) + 100;
+    return `${prefix}-${num}`;
+}
+
+function chunkString(str, maxLen) {
+    const s = String(str || '');
+    const limit = Number(maxLen) > 0 ? Number(maxLen) : 2000;
+    if (!s.length) return [''];
+    const chunks = [];
+    for (let i = 0; i < s.length; i += limit) chunks.push(s.slice(i, i + limit));
+    return chunks;
+}
+
+async function getOrCreateIncognitoWebhook(channel, client) {
+    const hooks = await channel.fetchWebhooks();
+    let hook = hooks.find((w) => w?.owner?.id === client.user.id && w?.name === INCOGNITO_WEBHOOK_NAME);
+    if (!hook) {
+        hook = await channel.createWebhook({
+            name: INCOGNITO_WEBHOOK_NAME,
+            avatar: INCOGNITO_AVATAR_URL,
+            reason: 'Incognito Room webhook',
+        });
+    }
+    return hook;
+}
+
 module.exports = {
     name: 'messageCreate',
     async execute(message, client) {
-        if (message.author.bot || !message.guild) return;
+        if (message.author.bot || message.webhookId || !message.guild) return;
+
+        try {
+            if (message.channelId === INCOGNITO_CHANNEL_ID) {
+                const originalContent = message.content ?? '';
+                const attachments = Array.from(message.attachments?.values?.() || []);
+                const files = attachments.map((a) => ({
+                    attachment: a.url,
+                    name: a.name || 'file',
+                    description: a.description || undefined,
+                }));
+
+                try {
+                    await message.delete();
+                } catch (e) {
+                    console.error('[INCOGNITO] Failed to delete message:', e);
+                }
+
+                let webhook = null;
+                try {
+                    webhook = await getOrCreateIncognitoWebhook(message.channel, client);
+                } catch (e) {
+                    console.error('[INCOGNITO] Failed to fetch/create webhook:', e);
+                    return;
+                }
+
+                const username = randomIncognitoName();
+                const chunks = chunkString(originalContent, 2000);
+
+                for (let i = 0; i < chunks.length; i++) {
+                    const chunk = chunks[i];
+                    const hasFilesThisSend = i === 0 && files.length > 0;
+                    const hasContentThisSend = Boolean(chunk && String(chunk).length > 0);
+                    if (!hasFilesThisSend && !hasContentThisSend) continue;
+
+                    try {
+                        await webhook.send({
+                            content: hasContentThisSend ? String(chunk) : undefined,
+                            username,
+                            avatarURL: INCOGNITO_AVATAR_URL,
+                            files: hasFilesThisSend ? files : undefined,
+                            allowedMentions: { parse: [] },
+                        });
+                    } catch (e) {
+                        console.error('[INCOGNITO] Failed to send webhook message:', e);
+                        break;
+                    }
+                }
+
+                try {
+                    const logsChannel = await client.channels.fetch(INCOGNITO_LOGS_CHANNEL_ID).catch(() => null);
+                    if (logsChannel && logsChannel.isTextBased?.()) {
+                        const attachmentLinks = attachments.map((a) => a.url);
+                        const trimmed = originalContent.length > 1024
+                            ? `${originalContent.slice(0, 1021)}...`
+                            : originalContent;
+
+                        const embed = new EmbedBuilder()
+                            .setColor(0x2b2d31)
+                            .setAuthor({
+                                name: `${message.author.tag} (${message.author.id})`,
+                                iconURL: message.author.displayAvatarURL?.() || undefined,
+                            })
+                            .addFields(
+                                {
+                                    name: 'Channel',
+                                    value: `<#${INCOGNITO_CHANNEL_ID}> (${INCOGNITO_CHANNEL_ID})`,
+                                    inline: false,
+                                },
+                                {
+                                    name: 'Content',
+                                    value: trimmed && trimmed.trim().length ? trimmed : '*No text content*',
+                                    inline: false,
+                                },
+                                {
+                                    name: 'Attachments',
+                                    value: attachmentLinks.length
+                                        ? (attachmentLinks.join('\n').length > 1024 ? `${attachmentLinks.join('\n').slice(0, 1021)}...` : attachmentLinks.join('\n'))
+                                        : '*None*',
+                                    inline: false,
+                                }
+                            )
+                            .setTimestamp(new Date());
+
+                        await logsChannel.send({ embeds: [embed] }).catch(() => {});
+                    }
+                } catch (e) {
+                    console.error('[INCOGNITO] Failed to send log message:', e);
+                }
+
+                return;
+            }
+        } catch (e) {
+            console.error('[INCOGNITO] Error:', e);
+        }
 
         // --- Music Links Only Channel ---
         try {
