@@ -1213,7 +1213,14 @@ module.exports = {
                 const allowed = new Set(['1085496418745200730', '629373738772594728']);
                 const VERIFIER_ROLE_ID = '1480220933187829881';
                 const hasVerifierRole = Boolean(interaction.member?.roles?.cache?.has(VERIFIER_ROLE_ID));
-                if (!allowed.has(interaction.user.id) && !hasVerifierRole) {
+
+                const PARTNERSHIPS_ROLE_ID = '1484963266177531986';
+                const hasPartnershipsRole = Boolean(interaction.member?.roles?.cache?.has(PARTNERSHIPS_ROLE_ID));
+                const topic = String(interaction.channel?.topic || '');
+                const isPartnershipsTicket = /Ticket:\s*partnerships\b/i.test(topic);
+
+                const canClose = allowed.has(interaction.user.id) || hasVerifierRole || (hasPartnershipsRole && isPartnershipsTicket);
+                if (!canClose) {
                     return safeReply({ content: '❌ Admin only.', ephemeral: true });
                 }
 
