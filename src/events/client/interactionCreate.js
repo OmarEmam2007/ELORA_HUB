@@ -1321,22 +1321,42 @@ module.exports = {
             ];
 
             if (value === 'girls_verification') {
-                overwrites.push({
-                    id: '1480220933187829881',
-                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-                });
+                const verifierRoleId = '1480220933187829881';
+                const verifierRole = interaction.guild.roles.cache.get(verifierRoleId)
+                    || await interaction.guild.roles.fetch(verifierRoleId).catch(() => null);
+                if (verifierRole) {
+                    overwrites.push({
+                        id: verifierRole.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                    });
+                } else {
+                    console.warn('[TICKET] girls_verification role not found:', verifierRoleId);
+                }
             }
 
             if (value === 'partnerships') {
-                overwrites.push({
-                    id: '1484963266177531986',
-                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
-                });
+                const partnershipsRoleId = '1484963266177531986';
+                const partnershipsRole = interaction.guild.roles.cache.get(partnershipsRoleId)
+                    || await interaction.guild.roles.fetch(partnershipsRoleId).catch(() => null);
+                if (partnershipsRole) {
+                    overwrites.push({
+                        id: partnershipsRole.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                    });
+                } else {
+                    console.warn('[TICKET] partnerships role not found:', partnershipsRoleId);
+                }
             }
 
             for (const roleId of STAFF_ROLE_IDS) {
+                const staffRole = interaction.guild.roles.cache.get(roleId)
+                    || await interaction.guild.roles.fetch(roleId).catch(() => null);
+                if (!staffRole) {
+                    console.warn('[TICKET] staff role not found:', roleId);
+                    continue;
+                }
                 overwrites.push({
-                    id: roleId,
+                    id: staffRole.id,
                     allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
                 });
             }
