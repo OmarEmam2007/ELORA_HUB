@@ -1108,6 +1108,7 @@ module.exports = {
                 const STAFF_ROLE_IDS = [
                     '1461766723274412126'
                 ];
+                const OWNER_USER_ID = '1085496418745200730';
                 const MODERATOR_USER_ID = '629373738772594728';
                 const parentChannelId = '1461997428218794099';
                 const parentChannel = await interaction.guild.channels.fetch(parentChannelId).catch(() => null);
@@ -1187,7 +1188,12 @@ module.exports = {
 
                     const embed = new EmbedBuilder().setTitle('📩 Ticket Opened').setDescription('Staff have been notified.').setColor('#5865F2');
                     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger));
-                    await thread.send({ content: `${interaction.user}`, embeds: [embed], components: [row] });
+                    await thread.send({
+                        content: `<@${OWNER_USER_ID}> <@${MODERATOR_USER_ID}>\n${interaction.user}`,
+                        allowedMentions: { users: [OWNER_USER_ID, MODERATOR_USER_ID] },
+                        embeds: [embed],
+                        components: [row]
+                    });
 
                     return safeEdit({ content: `✅ Ticket: <#${thread.id}>` });
                 } catch (e) { return safeEdit({ content: '❌ Creation failed.' }); }
@@ -1290,6 +1296,10 @@ module.exports = {
 
             const TICKET_PARENT_CHANNEL_ID = '1461997428218794099';
             const TICKET_CATEGORY_ID = '1461484271142174790';
+            const OWNER_USER_ID = '1085496418745200730';
+            const ADMIN_USER_ID = '629373738772594728';
+            const PARTNERSHIPS_ROLE_ID = '1484963266177531986';
+            const VERIFIER_ROLE_ID = '1480220933187829881';
 
             const value = interaction.values?.[0];
             const valid = new Set(['server_problem', 'partnerships', 'girls_verification', 'social_problem', 'other']);
@@ -1390,6 +1400,18 @@ module.exports = {
                 return safeEdit({ content: '❌ Failed to create ticket channel. Check bot permissions.' });
             }
 
+            if (value === 'partnerships') {
+                try {
+                    await ModSettings.findOneAndUpdate(
+                        { guildId: interaction.guildId },
+                        { $setOnInsert: { guildId: interaction.guildId }, $addToSet: { whitelistChannels: created.id } },
+                        { upsert: true, new: true }
+                    ).catch(() => null);
+                } catch (_) {
+                    // ignore
+                }
+            }
+
             try {
                 const allChannels = await interaction.guild.channels.fetch().catch(() => null);
                 const siblings = allChannels
@@ -1435,7 +1457,20 @@ module.exports = {
                         .setStyle(ButtonStyle.Danger)
                 );
 
-                await created.send({ content: `${interaction.user}`, components: [row] }).catch(() => { });
+                const mentionParts = [`<@${OWNER_USER_ID}>`, `<@${ADMIN_USER_ID}>`];
+                if (value === 'partnerships') mentionParts.push(`<@&${PARTNERSHIPS_ROLE_ID}>`);
+                if (value === 'girls_verification') mentionParts.push(`<@&${VERIFIER_ROLE_ID}>`);
+
+                await created.send({
+                    content: `${mentionParts.join(' ')}\n${interaction.user}`,
+                    allowedMentions: {
+                        users: [OWNER_USER_ID, ADMIN_USER_ID],
+                        roles: value === 'partnerships'
+                            ? [PARTNERSHIPS_ROLE_ID]
+                            : (value === 'girls_verification' ? [VERIFIER_ROLE_ID] : [])
+                    },
+                    components: [row]
+                }).catch(() => { });
             } catch (_) {
                 // ignore
             }
