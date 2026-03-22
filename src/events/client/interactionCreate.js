@@ -1391,11 +1391,15 @@ module.exports = {
             }
 
             try {
-                const siblings = interaction.guild.channels.cache
-                    .filter((c) => c?.parentId === TICKET_CATEGORY_ID && c?.id !== created.id);
-                const maxPos = siblings.size
+                const allChannels = await interaction.guild.channels.fetch().catch(() => null);
+                const siblings = allChannels
+                    ? allChannels.filter((c) => c?.parentId === TICKET_CATEGORY_ID && c?.id !== created.id)
+                    : null;
+
+                const maxPos = siblings?.size
                     ? Math.max(...siblings.map((c) => c.rawPosition ?? c.position ?? 0))
                     : 0;
+
                 await created.setPosition(maxPos + 1).catch(() => { });
             } catch (_) {
                 // ignore
