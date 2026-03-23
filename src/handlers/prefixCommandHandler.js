@@ -124,7 +124,33 @@ async function handlePrefixCommand(message, client) {
         }
     }
 
-    const cmd = client.prefixCommands?.get(commandName);
+    let cmd = client.prefixCommands?.get(commandName);
+    // Hot-reload for .sots to always use the newest edited file without restarting the bot.
+    // (Node caches require() results, so we explicitly clear cache for this command only.)
+    if (commandName === 'sots' || commandName === 'state' || commandName === 'serverstate' || commandName === 'sos') {
+        try {
+            const sotsPath = path.join(__dirname, '../commands/utility/sots.js');
+            const resolved = require.resolve(sotsPath);
+            delete require.cache[resolved];
+            const freshCmd = require(sotsPath);
+            if (freshCmd) {
+                cmd = freshCmd;
+                const cmdName = freshCmd.name || freshCmd.data?.name;
+                if (cmdName) {
+                    client.prefixCommands.set(String(cmdName).toLowerCase(), freshCmd);
+                }
+                if (freshCmd.aliases && Array.isArray(freshCmd.aliases)) {
+                    for (const alias of freshCmd.aliases) {
+                        client.prefixCommands.set(String(alias).toLowerCase(), freshCmd);
+                    }
+                }
+            }
+        } catch (e) {
+            if (PREFIX_DEBUG) {
+                console.warn('[PREFIX] .sots hot-reload failed:', e?.message || e);
+            }
+        }
+    }
     if (!cmd || typeof cmd.execute !== 'function') {
         if (PREFIX_DEBUG) {
             console.log(`[PREFIX] command not found: ${commandName}`);
