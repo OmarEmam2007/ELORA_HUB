@@ -16,7 +16,7 @@ module.exports = {
     async execute(interaction) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/slurns 0001.png'));
+        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
 
         const toSmallCaps = (input) => {
             const map = {

@@ -20,7 +20,7 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/555.png'), { name: 'whisper.png' });
+        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
 
         const select = new StringSelectMenuBuilder()
             .setCustomId('whisper_type_select')

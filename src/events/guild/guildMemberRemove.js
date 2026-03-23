@@ -89,9 +89,9 @@ module.exports = {
                 return;
             }
 
-            const bannerName = String(client?.config?.goodbyeBanner || '1.png');
+            const bannerName = '1234.png';
             const bannerPath = path.join(__dirname, '../../assets', bannerName);
-            const bannerFile = new AttachmentBuilder(bannerPath);
+            const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
             const header = '**' + toSmallCaps('GOODBYE') + '**';
             const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);

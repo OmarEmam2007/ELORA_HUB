@@ -105,9 +105,9 @@ module.exports = {
                 // ignore
             }
 
-            const bannerName = String(client?.config?.welcomeBanner || '1.png');
+            const bannerName = '1234.png';
             const bannerPath = path.join(__dirname, '../../assets', bannerName);
-            const bannerFile = new AttachmentBuilder(bannerPath);
+            const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
             const header = '**' + toSmallCaps('WELCOME TO ELORA') + '**';
             const body = [

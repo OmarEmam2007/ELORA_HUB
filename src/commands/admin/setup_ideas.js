@@ -22,8 +22,8 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true }).catch(() => { });
 
-        const imagePath = path.join(__dirname, '../../assets/555.png');
-        const file = new AttachmentBuilder(imagePath, { name: '555.png' });
+        const imagePath = path.join(__dirname, '../../assets/1234.png');
+        const file = new AttachmentBuilder(imagePath, { name: '1234.png' });
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('ideas_select')

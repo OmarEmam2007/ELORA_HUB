@@ -1,4 +1,5 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -8,6 +9,10 @@ module.exports = {
     async execute(interaction, client) {
 
         await interaction.deferReply({ ephemeral: true });
+
+        const bannerName = '1234.png';
+        const bannerPath = path.join(__dirname, '../../assets', bannerName);
+        const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
         const embed = new EmbedBuilder()
             .setTitle('📜 قوانين السيرفر الجديدة')
@@ -41,11 +46,11 @@ module.exports = {
                 `**5) Privacy is non‑negotiable**\n` +
                 `Doxing / leaking personal info = **instant ban**.`
             )
-            .setImage('https://media.discordapp.net/attachments/placeholder/rules-banner.png')
+            .setImage(`attachment://${bannerName}`)
             .setColor(client.config.colors.primary)
             .setTimestamp();
 
-        await interaction.channel.send({ embeds: [embed] });
+        await interaction.channel.send({ embeds: [embed], files: [bannerFile] });
         await interaction.editReply({ content: '✅ Rules panel deployed!' });
     },
 };
