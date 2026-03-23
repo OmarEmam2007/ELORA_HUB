@@ -125,6 +125,13 @@ function inferFlagColors(country) {
 
 async function ensureScoresFile() {
     try {
+        // 1) Requested: ensure ./data exists before read/write
+        try {
+            fs.mkdirSync('./data', { recursive: true });
+        } catch (_) {
+            // ignore; we'll still attempt the absolute path mkdir below
+        }
+
         await fsp.mkdir(path.dirname(SCORES_FILE_PATH), { recursive: true });
         if (!fs.existsSync(SCORES_FILE_PATH)) {
             await fsp.writeFile(SCORES_FILE_PATH, JSON.stringify({ version: 1, scores: {} }, null, 2), 'utf8');
@@ -260,7 +267,15 @@ function buildConnectionLostEmbed(country) {
 
 async function fetchRandomCountry() {
     const url = 'https://restcountries.com/v3.1/all';
-    const res = await fetch(url, { method: 'GET' });
+
+    // 3) Requested: add a standard User-Agent header
+    const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+            'User-Agent': 'ELORA Geo-Intercept (Discord Bot)'
+        }
+    });
+
     if (!res.ok) {
         throw new Error(`REST Countries API failed: HTTP ${res.status}`);
     }
@@ -352,7 +367,10 @@ module.exports = {
 
                 const embed = buildLeaderboardEmbed(rows);
                 return await message.reply({ embeds: [embed] });
-            } catch (e) {
+            } catch (error) {
+                // 2) Requested: log actual error
+                console.error('[Geo-Intercept Error]:', error);
+
                 const err = new EmbedBuilder()
                     .setColor(0x0f1317)
                     .setTitle('❌ CONNECTION LOST')
@@ -421,8 +439,6 @@ module.exports = {
                 time: 45_000
             });
 
-            let winnerMessage = null;
-
             collector.on('collect', async (m) => {
                 try {
                     const guess = normalizeGuess(m.content);
@@ -437,7 +453,7 @@ module.exports = {
                             country,
                             newScore: newScore ?? '—'
                         });
-                        winnerMessage = await message.channel.send({ embeds: [winEmbed] }).catch(() => null);
+                        await message.channel.send({ embeds: [winEmbed] }).catch(() => null);
                         return;
                     }
                 } catch (_) {
@@ -455,7 +471,10 @@ module.exports = {
                     cleanup();
                 }
             });
-        } catch (e) {
+        } catch (error) {
+            // 2) Requested: log actual error
+            console.error('[Geo-Intercept Error]:', error);
+
             cleanup();
             const errEmbed = new EmbedBuilder()
                 .setColor(0x0f1317)
