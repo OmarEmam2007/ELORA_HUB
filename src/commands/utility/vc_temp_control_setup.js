@@ -31,34 +31,34 @@ module.exports = {
     async execute(interaction, client) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/downlfffffoad.png'));
+        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setImage('attachment://downlfffffoad.png');
+            .setImage('attachment://1234.png');
 
         const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('🔒').setLabel(scLabel('Lock')),
-            new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('🔓').setLabel(scLabel('Unlock')),
-            new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('🫥').setLabel(scLabel('Hide')),
-            new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('👁️').setLabel(scLabel('Show')),
-            new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('🎚️').setLabel(scLabel('Bitrate'))
+            new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
+            new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unlock'),
+            new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Hide'),
+            new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unhide'),
+            new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Bitrate')
         );
 
         const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('👑').setLabel(scLabel('Owner')),
-            new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('👥').setLabel(scLabel('Limit')),
-            new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('✏️').setLabel(scLabel('Rename')),
-            new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('📌').setLabel(scLabel('Join')),
-            new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('🧲').setLabel(scLabel('Move'))
+            new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Transfer Owner'),
+            new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('User Limit'),
+            new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Rename'),
+            new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Me'),
+            new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Member')
         );
 
         const row3 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔇').setLabel(scLabel('Mute')),
-            new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('🔈').setLabel(scLabel('Unmute')),
-            new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🎧').setLabel(scLabel('Deafen')),
-            new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('🦻').setLabel(scLabel('Undeafen')),
-            new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('🗑️').setLabel(scLabel('Kick'))
+            new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Mute Member'),
+            new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unmute Member'),
+            new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Deafen Member'),
+            new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Undeafen Member'),
+            new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('▫️').setLabel('Kick Member')
         );
 
         await channel.send({ files: [banner], embeds: [embed], components: [row1, row2, row3] });

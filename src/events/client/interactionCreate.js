@@ -577,6 +577,116 @@ module.exports = {
                 if (!req.ok) return;
                 const ch = req.channel;
 
+                // --- TVCP SELECT MENUS ---
+                if (interaction.isStringSelectMenu?.()) {
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                    const selectedId = interaction.values?.[0];
+                    const targetMember = selectedId
+                        ? await interaction.guild.members.fetch(selectedId).catch(() => null)
+                        : null;
+
+                    if (!targetMember) {
+                        return safeEdit({ content: '❌ Member not found.' });
+                    }
+
+                    const me = interaction.guild.members.me;
+                    const inSameGuild = Boolean(targetMember.guild?.id === interaction.guild.id);
+                    if (!inSameGuild) return safeEdit({ content: '❌ Invalid member.' });
+
+                    if (interaction.customId === `${TVCP.PREFIX}kick_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.MoveMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Move Members.' });
+                        }
+                        if (targetMember.id === interaction.user.id) {
+                            return safeEdit({ content: '❌ You cannot kick yourself.' });
+                        }
+                        if (targetMember.voice?.channelId !== ch.id) {
+                            return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                        }
+                        await targetMember.voice.setChannel(null, `TempVoice kick by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Kicked **${targetMember.user.tag}**.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}move_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.MoveMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Move Members.' });
+                        }
+                        if (!targetMember.voice?.channelId) {
+                            return safeEdit({ content: '❌ That member is not in a voice channel.' });
+                        }
+                        await targetMember.voice.setChannel(ch, `TempVoice move by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Moved **${targetMember.user.tag}** to ${ch}.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}mute_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.MuteMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Mute Members.' });
+                        }
+                        if (targetMember.voice?.channelId !== ch.id) {
+                            return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                        }
+                        await targetMember.voice.setMute(true, `TempVoice mute by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Muted **${targetMember.user.tag}**.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}unmute_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.MuteMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Mute Members.' });
+                        }
+                        if (targetMember.voice?.channelId !== ch.id) {
+                            return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                        }
+                        await targetMember.voice.setMute(false, `TempVoice unmute by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Unmuted **${targetMember.user.tag}**.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}deafen_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.DeafenMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Deafen Members.' });
+                        }
+                        if (targetMember.voice?.channelId !== ch.id) {
+                            return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                        }
+                        await targetMember.voice.setDeaf(true, `TempVoice deafen by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Deafened **${targetMember.user.tag}**.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}undeafen_select`) {
+                        if (!me?.permissions?.has(PermissionFlagsBits.DeafenMembers)) {
+                            return safeEdit({ content: '❌ Missing bot permission: Deafen Members.' });
+                        }
+                        if (targetMember.voice?.channelId !== ch.id) {
+                            return safeEdit({ content: '❌ That member is not in your temp channel.' });
+                        }
+                        await targetMember.voice.setDeaf(false, `TempVoice undeafen by ${interaction.user.tag}`).catch(() => null);
+                        return safeEdit({ content: `✅ Undeafened **${targetMember.user.tag}**.` });
+                    }
+
+                    if (interaction.customId === `${TVCP.PREFIX}transfer_select`) {
+                        if (targetMember.id === interaction.user.id) {
+                            return safeEdit({ content: '❌ You are already the owner.' });
+                        }
+
+                        const prevOwnerId = interaction.user.id;
+                        const nextOwnerId = targetMember.id;
+
+                        await ch.permissionOverwrites.edit(prevOwnerId, {
+                            ManageChannels: null,
+                            MoveMembers: null
+                        }, { reason: `TempVoice ownership transfer: remove perms from ${prevOwnerId}` }).catch(() => null);
+
+                        await ch.permissionOverwrites.edit(nextOwnerId, {
+                            ManageChannels: true,
+                            MoveMembers: true
+                        }, { reason: `TempVoice ownership transfer: grant perms to ${nextOwnerId}` }).catch(() => null);
+
+                        return safeEdit({ content: `✅ Ownership transferred to **${targetMember.user.tag}**.` });
+                    }
+
+                    return safeEdit({ content: '❌ Unknown TempVoice selection.' });
+                }
+
                 if (interaction.customId === `${TVCP.PREFIX}lock`) {
                     await interaction.deferReply({ ephemeral: true }).catch(() => { });
                     await ch.permissionOverwrites.edit(interaction.guild.roles.everyone.id, {
@@ -822,6 +932,10 @@ module.exports = {
                     const row = new ActionRowBuilder().addComponents(menu);
                     return safeEdit({ content: 'Select a user:', components: [row] });
                 }
+
+                // Ensure we always respond to unknown TVCP interactions
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                return safeEdit({ content: '❌ Unknown TempVoice action.' });
             }
 
             // --- 📚 HELP PANEL BUTTONS ---
