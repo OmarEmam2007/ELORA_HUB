@@ -87,6 +87,13 @@ module.exports = {
 
         // --- 🎛️ TEMPVOICE CONTROL PANEL (TVCP) MODALS ---
         if (interaction.isModalSubmit() && interaction.customId && interaction.customId.startsWith(`${TVCP.PREFIX}modal_`)) {
+            const safeReply = async (payload) => {
+                try {
+                    if (interaction.deferred || interaction.replied) return await interaction.followUp(payload);
+                    return await interaction.reply(payload);
+                } catch (_) { }
+            };
+
             if (!interaction.guild) return safeReply({ content: 'This interaction can only be used in a server.', ephemeral: true });
 
             const req = await TVCP.requireOwnerAndChannel(interaction, safeReply);
