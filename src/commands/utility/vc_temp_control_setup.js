@@ -35,7 +35,8 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setImage('attachment://1234.png');
+            .setTitle('Temp Voice Control Panel')
+            .setDescription('Use the buttons below to manage your temporary voice channel.\n\nOnly the channel owner can use these controls.');
 
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
@@ -61,7 +62,8 @@ module.exports = {
             new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('▫️').setLabel('Kick Member')
         );
 
-        await channel.send({ files: [banner], embeds: [embed], components: [row1, row2, row3] });
+        await channel.send({ files: [banner] });
+        await channel.send({ embeds: [embed], components: [row1, row2, row3] });
         await interaction.reply({ content: `✅ TempVoice control panel deployed in ${channel}`, ephemeral: true });
     }
 };
