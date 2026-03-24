@@ -3,11 +3,42 @@ const ModSettings = require('../../models/ModSettings');
 
 const BOOSTER_ROLE_ID = '1482180640291029052';
 
+ const GIRLS_ROLE_ID = '1480220142213267476';
+ const GIRLS_WELCOME_MESSAGES = {
+     '1471217893936074762': '**Welcome to the main girls chat <@{userId}>, enjoy your stay ˚🎀༘⋆**',
+     '1480355583117885573': "**Welcome to girls discussions <@{userId}>, let's talk ˚🎀༘⋆**",
+     '1480356130663432353': '**Welcome to the selfie zone <@{userId}>, show us your glow ˚🎀༘⋆**',
+     '1480356614400770068': '**Welcome to girls tips <@{userId}>, share your magic ˚🎀༘⋆**',
+     '1480356879396896882': '**Welcome to our secrets chat <@{userId}>, your secrets are safe here ˚🎀༘⋆**'
+ };
+
 module.exports = {
     name: 'guildMemberUpdate',
     async execute(oldMember, newMember) {
         const guild = newMember.guild;
         const DEBUG = process.env.BOOST_DEBUG === '1';
+
+         // Girls role-based welcome system (trigger only when the role is added)
+         try {
+             const hadGirlsRoleBefore = oldMember?.roles?.cache?.has(GIRLS_ROLE_ID);
+             const hasGirlsRoleNow = newMember?.roles?.cache?.has(GIRLS_ROLE_ID);
+
+             if (!hadGirlsRoleBefore && hasGirlsRoleNow) {
+                 const userId = newMember.id;
+                 for (const [channelId, template] of Object.entries(GIRLS_WELCOME_MESSAGES)) {
+                     try {
+                         const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+                         if (!channel || !channel.isTextBased()) continue;
+                         const message = template.replace('{userId}', userId);
+                         await channel.send(message);
+                     } catch (err) {
+                         console.error(`[Girls Welcome] Failed to send welcome message in channel ${channelId}:`, err);
+                     }
+                 }
+             }
+         } catch (err) {
+             console.error('[Girls Welcome] Unexpected error in girls welcome system:', err);
+         }
 
         // التحقق من حالة البوست (هل بدأ بعمل بوست الآن؟)
         const oldStatus = oldMember.premiumSince;
