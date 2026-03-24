@@ -1,8 +1,11 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const path = require('path');
+const fs = require('fs');
 const THEME = require('../../utils/theme');
 const Confession = require('../../models/Confession');
 
 module.exports = {
+    name: 'confess',
     data: new SlashCommandBuilder()
         .setName('confess')
         .setDescription('Submit an anonymous confession to the confessions channel.')
@@ -13,52 +16,91 @@ module.exports = {
                 .setMaxLength(2000)
         ),
 
-    async execute(interaction, client) {
-        const confessionText = interaction.options.getString('message');
+    async execute(ctx, client, args) {
+        const isInteraction = Boolean(
+            ctx &&
+            typeof ctx === 'object' &&
+            typeof ctx.isChatInputCommand === 'function' &&
+            ctx.isChatInputCommand()
+        );
+        const confessionText = isInteraction
+            ? ctx.options.getString('message')
+            : (Array.isArray(args) ? args.join(' ').trim() : '').trim();
+
         const confessionsChannelId = '1467457036395614311';
 
-        // Defer reply to keep it private
-        await interaction.deferReply({ ephemeral: true });
+        if (!confessionText) {
+            if (isInteraction) {
+                return ctx.reply({ content: '❌ Please provide a confession message.', ephemeral: true });
+            }
+            return ctx.reply('❌ Please provide a confession message. Example: `.confess i like...`');
+        }
+
+        if (isInteraction) {
+            // Defer reply to keep it private
+            await ctx.deferReply({ ephemeral: true });
+        }
 
         try {
             // Get the confessions channel
-            const confessionsChannel = interaction.guild.channels.cache.get(confessionsChannelId);
+            const guild = isInteraction ? ctx.guild : ctx.guild;
+            const confessionsChannel = guild?.channels?.cache?.get(confessionsChannelId);
             
             if (!confessionsChannel) {
-                return interaction.editReply({
-                    content: '❌ Confessions channel not found. Please contact an administrator.'
-                });
+                if (isInteraction) {
+                    return ctx.editReply({
+                        content: '❌ Confessions channel not found. Please contact an administrator.'
+                    });
+                }
+                return ctx.reply('❌ Confessions channel not found. Please contact an administrator.');
             }
 
             // Check if channel is text-based
             if (!confessionsChannel.isTextBased()) {
-                return interaction.editReply({
-                    content: '❌ The configured confessions channel is not a text channel.'
-                });
+                if (isInteraction) {
+                    return ctx.editReply({
+                        content: '❌ The configured confessions channel is not a text channel.'
+                    });
+                }
+                return ctx.reply('❌ The configured confessions channel is not a text channel.');
             }
 
             // Generate unique confession ID
             const confessionId = `CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
+            const jennieGifPath = path.join(__dirname, '../../../assets/jennie2.gif');
+            const jennieGifFallbackPath = path.join(__dirname, '../../assets/jennie2.gif');
+            const files = [];
+            if (fs.existsSync(jennieGifPath)) {
+                files.push(new AttachmentBuilder(jennieGifPath, { name: 'jennie2.gif' }));
+            } else if (fs.existsSync(jennieGifFallbackPath)) {
+                files.push(new AttachmentBuilder(jennieGifFallbackPath, { name: 'jennie2.gif' }));
+            } else {
+                console.warn(`[CONFESS] Missing GIF file: ${jennieGifPath}`);
+            }
+
             // Create embed for the confession
             const confessionEmbed = new EmbedBuilder()
-                .setColor(THEME.COLORS.SECONDARY)
-                .setTitle('🌑 Anonymous Confession')
+                .setColor(THEME.COLORS.GRAVITY || THEME.COLORS.PRIMARY)
+                .setTitle('▫️ New Confession')
                 .setDescription(confessionText)
                 .setFooter({ 
-                    text: `Confession #${confessionId.split('-')[1].slice(-6)} • ${THEME.FOOTER.text}`, 
-                    iconURL: THEME.FOOTER.iconURL 
+                    text: `ELORA Confessions • #${confessionId.split('-')[1].slice(-6)}`
                 })
                 .setTimestamp();
 
+            if (files.length) {
+                confessionEmbed.setImage('attachment://jennie2.gif');
+            }
+
             // Send confession to the channel
-            const sentMessage = await confessionsChannel.send({ embeds: [confessionEmbed] });
+            const sentMessage = await confessionsChannel.send({ embeds: [confessionEmbed], files });
 
             // Save to database
             const confession = new Confession({
                 confessionId: confessionId,
-                guildId: interaction.guild.id,
-                userId: interaction.user.id,
+                guildId: guild.id,
+                userId: isInteraction ? ctx.user.id : ctx.author.id,
                 content: confessionText,
                 messageId: sentMessage.id,
                 createdAt: new Date()
@@ -74,17 +116,22 @@ module.exports = {
                 .setFooter(THEME.FOOTER)
                 .setTimestamp();
 
-            await interaction.editReply({ embeds: [successEmbed] });
+            if (isInteraction) {
+                await ctx.editReply({ embeds: [successEmbed] });
+            } else {
+                await ctx.reply({ embeds: [successEmbed] });
+            }
 
             // Log to confession logs channel
             const confessionLogsChannelId = '1467478374229213269';
             
             try {
                 // Use client to get channel (more reliable)
-                let confessionLogsChannel = interaction.client.channels.cache.get(confessionLogsChannelId);
+                const discordClient = isInteraction ? ctx.client : client;
+                let confessionLogsChannel = discordClient.channels.cache.get(confessionLogsChannelId);
                 
                 if (!confessionLogsChannel) {
-                    confessionLogsChannel = await interaction.client.channels.fetch(confessionLogsChannelId).catch(() => null);
+                    confessionLogsChannel = await discordClient.channels.fetch(confessionLogsChannelId).catch(() => null);
                 }
                 
                 if (confessionLogsChannel && confessionLogsChannel.isTextBased()) {
@@ -98,19 +145,19 @@ module.exports = {
                         .setColor(THEME.COLORS.ACCENT || '#00F3FF')
                         .setAuthor({ 
                             name: '📝 Confession Log', 
-                            iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
+                            iconURL: (isInteraction ? ctx.user : ctx.author).displayAvatarURL({ dynamic: true }) 
                         })
                         .setDescription(
-                            `**User:** ${interaction.user} (${interaction.user.id})\n` +
+                            `**User:** ${(isInteraction ? ctx.user : ctx.author)} (${(isInteraction ? ctx.user : ctx.author).id})\n` +
                             `**Confession ID:** #${confessionId.split('-')[1].slice(-6)}\n` +
                             `**Submitted:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
                             `**Message:**\n${truncatedText}`
                         )
-                        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+                        .setThumbnail((isInteraction ? ctx.user : ctx.author).displayAvatarURL({ dynamic: true }))
                         .setTimestamp();
 
                     await confessionLogsChannel.send({ embeds: [logEmbed] });
-                    console.log(`✅ Confession logged successfully for user ${interaction.user.tag} (${interaction.user.id})`);
+                    console.log(`✅ Confession logged successfully for user ${(isInteraction ? ctx.user : ctx.author).tag} (${(isInteraction ? ctx.user : ctx.author).id})`);
                 } else {
                     console.error(`❌ Confession logs channel ${confessionLogsChannelId} not found or not accessible`);
                 }
@@ -129,7 +176,11 @@ module.exports = {
                 .setDescription(`An error occurred while posting your confession.\n${error.message}`)
                 .setTimestamp();
 
-            await interaction.editReply({ embeds: [errorEmbed] });
+            if (isInteraction) {
+                await ctx.editReply({ embeds: [errorEmbed] });
+            } else {
+                await ctx.reply({ embeds: [errorEmbed] });
+            }
         }
     },
 };
