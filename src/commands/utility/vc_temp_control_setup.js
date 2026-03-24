@@ -34,7 +34,8 @@ module.exports = {
         const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
 
         const embed = new EmbedBuilder()
-            .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827');
+            .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
+            .setDescription(' ');
 
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
