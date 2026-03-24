@@ -5,6 +5,121 @@ const path = require('path');
 
 const ACTIVE_GEO_CHANNELS = new Set();
 
+const REST_COUNTRIES_CACHE = {
+    data: null,
+    fetchedAt: 0,
+    inFlight: null
+};
+
+const REST_COUNTRIES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const FALLBACK_COUNTRIES = [
+    {
+        name: { common: 'Japan', official: 'Japan' },
+        altSpellings: ['JP', 'Nippon', 'Nihon'],
+        region: 'Asia',
+        subregion: 'Eastern Asia',
+        capital: ['Tokyo'],
+        tld: ['.jp'],
+        idd: { root: '+8', suffixes: ['1'] },
+        currencies: { JPY: { name: 'Japanese yen' } },
+        cca2: 'JP',
+        cca3: 'JPN',
+        flag: '🇯🇵'
+    },
+    {
+        name: { common: 'Brazil', official: 'Federative Republic of Brazil' },
+        altSpellings: ['BR', 'Brasil'],
+        region: 'Americas',
+        subregion: 'South America',
+        capital: ['Brasília'],
+        tld: ['.br'],
+        idd: { root: '+5', suffixes: ['5'] },
+        currencies: { BRL: { name: 'Brazilian real' } },
+        cca2: 'BR',
+        cca3: 'BRA',
+        flag: '🇧🇷'
+    },
+    {
+        name: { common: 'Germany', official: 'Federal Republic of Germany' },
+        altSpellings: ['DE', 'Deutschland'],
+        region: 'Europe',
+        subregion: 'Western Europe',
+        capital: ['Berlin'],
+        tld: ['.de'],
+        idd: { root: '+4', suffixes: ['9'] },
+        currencies: { EUR: { name: 'Euro' } },
+        cca2: 'DE',
+        cca3: 'DEU',
+        flag: '🇩🇪'
+    },
+    {
+        name: { common: 'Canada', official: 'Canada' },
+        altSpellings: ['CA'],
+        region: 'Americas',
+        subregion: 'North America',
+        capital: ['Ottawa'],
+        tld: ['.ca'],
+        idd: { root: '+1', suffixes: [''] },
+        currencies: { CAD: { name: 'Canadian dollar' } },
+        cca2: 'CA',
+        cca3: 'CAN',
+        flag: '🇨🇦'
+    },
+    {
+        name: { common: 'Egypt', official: 'Arab Republic of Egypt' },
+        altSpellings: ['EG', 'Misr'],
+        region: 'Africa',
+        subregion: 'Northern Africa',
+        capital: ['Cairo'],
+        tld: ['.eg'],
+        idd: { root: '+2', suffixes: ['0'] },
+        currencies: { EGP: { name: 'Egyptian pound' } },
+        cca2: 'EG',
+        cca3: 'EGY',
+        flag: '🇪🇬'
+    },
+    {
+        name: { common: 'Australia', official: 'Commonwealth of Australia' },
+        altSpellings: ['AU'],
+        region: 'Oceania',
+        subregion: 'Australia and New Zealand',
+        capital: ['Canberra'],
+        tld: ['.au'],
+        idd: { root: '+6', suffixes: ['1'] },
+        currencies: { AUD: { name: 'Australian dollar' } },
+        cca2: 'AU',
+        cca3: 'AUS',
+        flag: '🇦🇺'
+    },
+    {
+        name: { common: 'France', official: 'French Republic' },
+        altSpellings: ['FR', 'République française'],
+        region: 'Europe',
+        subregion: 'Western Europe',
+        capital: ['Paris'],
+        tld: ['.fr'],
+        idd: { root: '+3', suffixes: ['3'] },
+        currencies: { EUR: { name: 'Euro' } },
+        cca2: 'FR',
+        cca3: 'FRA',
+        flag: '🇫🇷'
+    },
+    {
+        name: { common: 'India', official: 'Republic of India' },
+        altSpellings: ['IN', 'Bharat'],
+        region: 'Asia',
+        subregion: 'Southern Asia',
+        capital: ['New Delhi'],
+        tld: ['.in'],
+        idd: { root: '+9', suffixes: ['1'] },
+        currencies: { INR: { name: 'Indian rupee' } },
+        cca2: 'IN',
+        cca3: 'IND',
+        flag: '🇮🇳'
+    }
+];
+
 const SCORES_FILE_PATH = path.join(__dirname, '../../../data/geo_scores.json');
 
 function clampStr(s, maxLen) {
@@ -266,32 +381,80 @@ function buildConnectionLostEmbed(country) {
 }
 
 async function fetchRandomCountry() {
-    const url = 'https://restcountries.com/v3.1/all';
+    const pickRandom = (arr) => {
+        if (!Array.isArray(arr) || !arr.length) return null;
+        return arr[Math.floor(Math.random() * arr.length)];
+    };
 
-    // 3) Requested: add a standard User-Agent header
-    const res = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'User-Agent': 'ELORA Geo-Intercept (Discord Bot)'
+    const sanitizeCountries = (data) => {
+        if (!Array.isArray(data) || !data.length) return [];
+        const candidates = data.filter((c) => {
+            const common = c?.name?.common;
+            const official = c?.name?.official;
+            return typeof common === 'string' && common.trim().length >= 3 && typeof official === 'string' && official.trim();
+        });
+        return candidates.length ? candidates : data;
+    };
+
+    try {
+        const now = Date.now();
+        if (Array.isArray(REST_COUNTRIES_CACHE.data) && REST_COUNTRIES_CACHE.data.length) {
+            const age = now - REST_COUNTRIES_CACHE.fetchedAt;
+            if (age >= 0 && age < REST_COUNTRIES_CACHE_TTL_MS) {
+                return pickRandom(REST_COUNTRIES_CACHE.data);
+            }
         }
-    });
 
-    if (!res.ok) {
-        throw new Error(`REST Countries API failed: HTTP ${res.status}`);
+        if (!REST_COUNTRIES_CACHE.inFlight) {
+            REST_COUNTRIES_CACHE.inFlight = (async () => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    try { controller.abort(); } catch (_) { }
+                }, 10_000);
+
+                try {
+                    const url = 'https://restcountries.com/v3.1/all';
+                    const res = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'ELORA Geo-Intercept (Discord Bot)',
+                            'Accept': 'application/json'
+                        },
+                        signal: controller.signal
+                    });
+
+                    if (!res?.ok) {
+                        throw new Error(`REST Countries API failed: HTTP ${res?.status ?? 'Unknown'}`);
+                    }
+
+                    const json = await res.json();
+                    const pool = sanitizeCountries(json);
+                    if (!pool.length) throw new Error('REST Countries API returned empty payload');
+
+                    REST_COUNTRIES_CACHE.data = pool;
+                    REST_COUNTRIES_CACHE.fetchedAt = Date.now();
+                    return pool;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            })()
+                .catch((e) => {
+                    console.error('[Geo-Intercept Error]:', e);
+                    return null;
+                })
+                .finally(() => {
+                    REST_COUNTRIES_CACHE.inFlight = null;
+                });
+        }
+
+        const pool = await REST_COUNTRIES_CACHE.inFlight;
+        const chosen = pickRandom(pool);
+        if (chosen) return chosen;
+    } catch (e) {
+        console.error('[Geo-Intercept Error]:', e);
     }
-    const data = await res.json();
-    if (!Array.isArray(data) || !data.length) {
-        throw new Error('REST Countries API returned empty payload');
-    }
 
-    const candidates = data.filter((c) => {
-        const common = c?.name?.common;
-        const official = c?.name?.official;
-        return typeof common === 'string' && common.trim().length >= 3 && typeof official === 'string' && official.trim();
-    });
-
-    const pool = candidates.length ? candidates : data;
-    return pool[Math.floor(Math.random() * pool.length)];
+    return pickRandom(FALLBACK_COUNTRIES);
 }
 
 function makeAnswerSet(country) {
@@ -476,11 +639,9 @@ module.exports = {
             console.error('[Geo-Intercept Error]:', error);
 
             cleanup();
-            const errEmbed = new EmbedBuilder()
-                .setColor(0x0f1317)
-                .setTitle('❌ CONNECTION LOST')
-                .setDescription('```\nGeo-Intercept subsystem offline.\nTry again later.\n```');
-            return await message.reply({ embeds: [errEmbed] });
+            return await message.reply({
+                content: '▫️ The Geo-Intercept satellite is currently down. Try again later.'
+            });
         }
     }
 };
