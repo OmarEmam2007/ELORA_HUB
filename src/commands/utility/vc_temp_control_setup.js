@@ -35,7 +35,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setDescription(' ');
+            .setDescription('**Temp Voice Control**');
 
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
