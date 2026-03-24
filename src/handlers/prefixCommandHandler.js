@@ -71,6 +71,27 @@ async function handlePrefixCommand(message, client) {
     const text = String(message.content || '').trim();
     if (!text) return;
 
+    // Exact phrase trigger: .help me mommy
+    // This is handled before generic prefix parsing so it can't be swallowed by the existing .help command.
+    if (/^\.help\s+me\s+mommy\s*$/i.test(text)) {
+        try {
+            const cmd = client?.prefixCommands?.get?.('help_me_mommy') || client?.prefixCommands?.get?.('help-me-mommy');
+            if (cmd?.executePrefix) {
+                await cmd.executePrefix(message, client);
+                return true;
+            }
+            // Fallback: require directly (in case prefix command cache doesn't include it yet)
+            const fallback = require('../commands/utility/help_me_mommy');
+            if (fallback?.executePrefix) {
+                await fallback.executePrefix(message, client);
+                return true;
+            }
+        } catch (e) {
+            console.error('[PREFIX] .help me mommy failed:', e);
+        }
+        return true;
+    }
+
     const PREFIX_DEBUG = process.env.PREFIX_DEBUG === '1';
 
     // Main prefix style: "elora <command> ..."

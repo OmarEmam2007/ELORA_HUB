@@ -35,7 +35,8 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setDescription('**Temp Voice Control**');
+            .setDescription('**Temp Voice Control**')
+            .setImage('attachment://1234.png');
 
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
@@ -62,7 +63,7 @@ module.exports = {
         );
 
         await channel.send({ files: [banner] });
-        await channel.send({ embeds: [embed], components: [row1, row2, row3] });
+        await channel.send({ files: [banner], embeds: [embed], components: [row1, row2, row3] });
         await interaction.reply({ content: `✅ TempVoice control panel deployed in ${channel}`, ephemeral: true });
     }
 };

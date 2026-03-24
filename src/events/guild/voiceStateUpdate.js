@@ -13,7 +13,13 @@ module.exports = {
             if (!member || member.user?.bot) return;
 
             const MASTER_CHANNEL_ID = '1479241475845001381';
-            const TEMP_PREFIX = '🔊 | ';
+            // Temp channels are tracked by ID. Never rely on the channel name.
+            if (!client.tempVoice) {
+                client.tempVoice = {
+                    channelOwners: new Map(), // channelId -> ownerId
+                    ownerChannels: new Map(), // ownerId -> channelId
+                };
+            }
 
             const userId = member.id;
             const guildId = guild.id;
@@ -25,13 +31,14 @@ module.exports = {
                 const oldCh = oldState.channel;
                 const newCh = newState.channel;
 
-                if (
-                    oldCh?.type === 2 &&
-                    oldCh?.name?.startsWith?.(TEMP_PREFIX) &&
-                    Boolean(oldCh?.permissionOverwrites?.cache?.get(member.id)?.allow?.has?.('ManageChannels')) &&
-                    oldCh.members?.size === 0
-                ) {
+                // Auto-delete empty temp channels (ID-based, strict)
+                if (oldCh?.type === 2 && client.tempVoice.channelOwners.has(oldCh.id) && oldCh.members?.size === 0) {
+                    const ownerId = client.tempVoice.channelOwners.get(oldCh.id);
                     await oldCh.delete('Dynamic voice: temp channel empty').catch(() => { });
+                    client.tempVoice.channelOwners.delete(oldCh.id);
+                    if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
+                        client.tempVoice.ownerChannels.delete(ownerId);
+                    }
                 }
 
                 if (newCh?.id === MASTER_CHANNEL_ID && oldCh?.id !== MASTER_CHANNEL_ID) {
@@ -39,7 +46,7 @@ module.exports = {
                     const parentId = newCh.parentId || null;
 
                     const created = await guild.channels.create({
-                        name: `${TEMP_PREFIX}${member.user.username}`,
+                        name: `Temp - ${member.user.username}`,
                         type: 2,
                         reason: `Dynamic voice created for ${member.user.tag} (${member.id})`,
                         permissionOverwrites: [
@@ -62,6 +69,10 @@ module.exports = {
                     }
 
                     if (created) {
+                        // Track by ID so renames never break logic
+                        client.tempVoice.channelOwners.set(created.id, member.id);
+                        client.tempVoice.ownerChannels.set(member.id, created.id);
+
                         await newState.setChannel(created).catch(() => { });
                         console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
                     } else {

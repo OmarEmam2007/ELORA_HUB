@@ -16,13 +16,13 @@ function buildHelpEmbed(page) {
 
     if (page === 'home') {
         embed
-            .setTitle('📚 Elora Help')
+            .setTitle('▤ Elora Help')
             .setDescription('Use the buttons below to browse command categories.');
     }
 
     if (page === 'moderation') {
         embed
-            .setTitle('🔨 Moderation')
+            .setTitle('▤ Moderation')
             .setDescription(
                 [
                     '`/warn add` - Warn a user (auto-timeout at 3 warns)',
@@ -37,7 +37,7 @@ function buildHelpEmbed(page) {
 
     if (page === 'security') {
         embed
-            .setTitle('🛡️ Security / Anti-Nuke')
+            .setTitle('▤ Security / Anti-Nuke')
             .setDescription(
                 [
                     '`/security logs` - Set security log channel',
@@ -51,7 +51,7 @@ function buildHelpEmbed(page) {
 
     if (page === 'music') {
         embed
-            .setTitle('🎵 Music')
+            .setTitle('▤ Music')
             .setDescription(
                 [
                     '`/play` - Play or queue a song',
@@ -62,7 +62,7 @@ function buildHelpEmbed(page) {
 
     if (page === 'utility') {
         embed
-            .setTitle('🧰 Utility')
+            .setTitle('▤ Utility')
             .setDescription(
                 [
                     '`/leaderboard` - Show top users (levels/economy)',
