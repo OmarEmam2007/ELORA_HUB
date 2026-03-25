@@ -1,6 +1,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
 const InviteStats = require('../../models/InviteStats');
+const giveawayService = require('../../services/giveawayService');
 
 module.exports = {
     name: 'guildMemberAdd',
@@ -83,6 +84,13 @@ module.exports = {
                 if (detectedInviterId && detectedInviterId !== member.id) {
                     const now = new Date();
                     const isFake = (now.getTime() - member.user.createdAt.getTime()) < (24 * 60 * 60 * 1000);
+
+                    // --- ▫️ Giveaway Invite Tracking (JSON, active giveaway only) ---
+                    try {
+                        giveawayService.recordInviteJoinForActive(detectedInviterId, member.id, now.getTime());
+                    } catch (_) {
+                        // ignore
+                    }
 
                     const stats = await InviteStats.findOneAndUpdate(
                         { guildId, userId: detectedInviterId },

@@ -1,6 +1,7 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
 const InviteStats = require('../../models/InviteStats');
+const giveawayService = require('../../services/giveawayService');
 
 module.exports = {
     name: 'guildMemberRemove',
@@ -31,6 +32,13 @@ module.exports = {
             try {
                 const guildId = member.guild.id;
                 const leaverId = member.id;
+
+                // --- ▫️ Giveaway Invite Leave Tracking (JSON, active giveaway only) ---
+                try {
+                    giveawayService.recordInviteLeaveForActive(leaverId);
+                } catch (_) {
+                    // ignore
+                }
 
                 const inviterStats = await InviteStats.findOne({ guildId, 'invitedUsers.userId': leaverId });
                 if (inviterStats) {

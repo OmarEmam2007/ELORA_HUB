@@ -4,6 +4,15 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
+        // --- ▫️ Giveaway System Bootstrap (best-effort) ---
+        try {
+            const giveawayService = require('../../services/giveawayService');
+            await giveawayService.ensureStaffDashboard(client);
+            await giveawayService.scheduleActiveEnd(client);
+        } catch (_) {
+            // ignore
+        }
+
         // --- 🔊 Persistent Voice Connection (best-effort) ---
         try {
             const { ChannelType } = require('discord.js');

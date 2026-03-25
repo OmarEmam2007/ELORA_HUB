@@ -11,6 +11,7 @@ const SettingsCommand = require('../../commands/utility/settings');
 const User = require('../../models/User');
 const MarriageProposal = require('../../models/MarriageProposal');
 const { withTransaction } = require('../../services/marriageService');
+const giveawayService = require('../../services/giveawayService');
 
 const TVCP = {
     PREFIX: 'tvcp_',
@@ -95,6 +96,19 @@ const TVCP = {
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
+        // --- ▫️ Giveaway System Interactions (Staff + Public) ---
+        try {
+            if (interaction.isButton() || interaction.isModalSubmit()) {
+                const handledStaff = await giveawayService.handleStaffInteraction(interaction, client);
+                if (handledStaff) return;
+
+                const handledPublic = await giveawayService.handlePublicInteraction(interaction, client);
+                if (handledPublic) return;
+            }
+        } catch (_) {
+            // ignore
+        }
+
         // HUB must not handle moderation/security interactions (owned by SHIELD)
         try {
             const id = String(interaction.customId || '');
