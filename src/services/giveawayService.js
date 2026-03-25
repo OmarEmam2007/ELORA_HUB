@@ -8,6 +8,7 @@ const GIVEAWAY_CHANNEL_ID = '1486378746381340702';
 
 const STAFF_PANEL_CUSTOM_ID_PREFIX = 'gwy_staff_';
 const PUBLIC_CUSTOM_ID_PREFIX = 'gwy_pub_';
+const STAFF_ENTRIES_CUSTOM_ID_PREFIX = 'gwy_staff_entries_';
 
 const STORAGE_DIR = path.join(__dirname, '..', 'data');
 const STORAGE_FILE = path.join(STORAGE_DIR, 'giveaway.json');
@@ -117,17 +118,25 @@ function buildStaffPanelComponents() {
         new ButtonBuilder()
             .setCustomId(`${STAFF_PANEL_CUSTOM_ID_PREFIX}create`)
             .setStyle(ButtonStyle.Secondary)
-            .setLabel('**▫️ Create Giveaway**'),
+            .setLabel('▫️ Create Giveaway'),
         new ButtonBuilder()
             .setCustomId(`${STAFF_PANEL_CUSTOM_ID_PREFIX}end`)
             .setStyle(ButtonStyle.Danger)
-            .setLabel('**▫️ End Early**'),
+            .setLabel('▫️ End Early'),
         new ButtonBuilder()
             .setCustomId(`${STAFF_PANEL_CUSTOM_ID_PREFIX}reroll`)
             .setStyle(ButtonStyle.Primary)
-            .setLabel('**▫️ Reroll**')
+            .setLabel('▫️ Reroll')
     );
-    return [row];
+
+    const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`${STAFF_PANEL_CUSTOM_ID_PREFIX}view_entries`)
+            .setStyle(ButtonStyle.Secondary)
+            .setLabel('▫️ View Entries')
+    );
+
+    return [row, row2];
 }
 
 function buildCreateGiveawayModal() {
@@ -177,10 +186,13 @@ function buildGiveawayEmbed(active) {
     const endUnix = Math.floor(active.endAtMs / 1000);
     const bannerName = '1234.png';
 
+    const totalEntries = Object.keys(active.tickets || {}).length;
+
     const desc = [
         boldAll(`▫️ Prize: ${active.prize}`),
         boldAll(`▫️ Ends: <t:${endUnix}:R>`),
         boldAll(`▫️ Winners: ${active.winnersCount}`),
+        boldAll(`▫️ Total Entries: ${totalEntries}`),
         boldAll(`▫️ Requirement: Invite ${active.requiredInvites} members using your personal link (Counts only after giveaway started)`)
     ].join('\n');
 
@@ -198,14 +210,111 @@ function buildGiveawayComponents() {
         new ButtonBuilder()
             .setCustomId(`${PUBLIC_CUSTOM_ID_PREFIX}claim`)
             .setStyle(ButtonStyle.Primary)
-            .setLabel('**✦ Claim Ticket**'),
+            .setLabel('✦ Claim Ticket'),
         new ButtonBuilder()
             .setCustomId(`${PUBLIC_CUSTOM_ID_PREFIX}progress`)
             .setStyle(ButtonStyle.Secondary)
-            .setLabel('**▫️ Check Progress**')
+            .setLabel('▫️ Check Progress')
     );
 
     return [row];
+}
+
+async function updateActiveGiveawayMessage(client) {
+    try {
+        const state = readState();
+        const active = state.active;
+        if (!active?.postedMessageId || !active?.postedChannelId) return;
+
+        const ch = await client.channels.fetch(active.postedChannelId).catch(() => null);
+        if (!ch || !ch.isTextBased?.()) return;
+
+        const msg = await ch.messages.fetch(active.postedMessageId).catch(() => null);
+        if (!msg) return;
+
+        const bannerName = '1234.png';
+        const bannerFile = new AttachmentBuilder(getBannerPath(bannerName), { name: bannerName });
+        const embed = buildGiveawayEmbed(active);
+        const components = buildGiveawayComponents();
+
+        await msg.edit({ embeds: [embed], components, files: [bannerFile] }).catch(() => { });
+    } catch (_) {
+        // ignore
+    }
+}
+
+function chunkLinesToPages(lines, maxChars) {
+    const pages = [];
+    let current = '';
+    for (const line of lines) {
+        const next = current ? `${current}\n${line}` : line;
+        if (next.length > maxChars && current) {
+            pages.push(current);
+            current = line;
+        } else {
+            current = next;
+        }
+    }
+    if (current) pages.push(current);
+    return pages;
+}
+
+function buildEntriesPaginationRow(page, pageCount) {
+    const prevDisabled = page <= 0;
+    const nextDisabled = page >= (pageCount - 1);
+
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`${STAFF_ENTRIES_CUSTOM_ID_PREFIX}prev_${page}`)
+            .setStyle(ButtonStyle.Secondary)
+            .setLabel('▫️ Prev')
+            .setDisabled(prevDisabled),
+        new ButtonBuilder()
+            .setCustomId(`${STAFF_ENTRIES_CUSTOM_ID_PREFIX}next_${page}`)
+            .setStyle(ButtonStyle.Secondary)
+            .setLabel('▫️ Next')
+            .setDisabled(nextDisabled)
+    );
+}
+
+async function replyEntriesPage(interaction, client, { page }) {
+    const active = getActiveGiveaway();
+    if (!active) {
+        await interaction.reply({ content: boldAll('▫️ No active giveaway.'), ephemeral: true }).catch(() => { });
+        return;
+    }
+
+    const ticketUserIds = Object.keys(active.tickets || {});
+    const total = ticketUserIds.length;
+
+    const lines = [];
+    for (const userId of ticketUserIds) {
+        const user = await client.users.fetch(userId).catch(() => null);
+        if (!user) {
+            lines.push(`▫️ **${userId}**`);
+            continue;
+        }
+        const displayName = user.globalName || user.displayName || user.username;
+        lines.push(`▫️ **${displayName}** (@${user.username})`);
+    }
+
+    const pages = chunkLinesToPages(lines.length ? lines : ['▫️ **No entries yet.**'], 3800);
+    const pageCount = Math.max(1, pages.length);
+    const safePage = Math.min(Math.max(0, Number(page) || 0), pageCount - 1);
+
+    const embed = new EmbedBuilder()
+        .setColor(0x2b2d31)
+        .setTitle(boldAll(`✦ Giveaway Entries (${total})`))
+        .setDescription(pages[safePage] || boldAll('▫️ No entries yet.'))
+        .setThumbnail(client.user.displayAvatarURL({ extension: 'png', size: 256 }));
+
+    const row = buildEntriesPaginationRow(safePage, pageCount);
+
+    if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ embeds: [embed], components: [row] }).catch(() => { });
+    } else {
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true }).catch(() => { });
+    }
 }
 
 async function ensureStaffDashboard(client) {
@@ -238,7 +347,7 @@ async function postGiveawayMessage(client, active) {
     const embed = buildGiveawayEmbed(active);
     const components = buildGiveawayComponents();
 
-    const msg = await ch.send({ embeds: [embed], components, files: [bannerFile] }).catch(() => null);
+    const msg = await ch.send({ content: '@everyone', embeds: [embed], components, files: [bannerFile] }).catch(() => null);
     if (!msg) return { ok: false };
 
     return { ok: true, messageId: msg.id, channelId: ch.id };
@@ -326,7 +435,7 @@ function claimTicketForActive(userId) {
     if (!active.tickets) active.tickets = {};
 
     if (active.tickets[userId]) {
-        return { ok: true, ticketId: active.tickets[userId] };
+        return { ok: true, ticketId: active.tickets[userId], isNew: false };
     }
 
     const ticketId = generateTicketId();
@@ -335,7 +444,7 @@ function claimTicketForActive(userId) {
     state.active = active;
     writeState(state);
 
-    return { ok: true, ticketId };
+    return { ok: true, ticketId, isNew: true };
 }
 
 async function createGiveaway(client, { prize, durationMs, winnersCount, requiredInvites, createdById }) {
@@ -507,6 +616,17 @@ async function handleStaffInteraction(interaction, client) {
             await interaction.reply({ content: boldAll('▫️ Reroll completed.'), ephemeral: true }).catch(() => { });
             return true;
         }
+
+        if (interaction.customId === `${STAFF_PANEL_CUSTOM_ID_PREFIX}view_entries`) {
+            const active = getActiveGiveaway();
+            if (!active) {
+                await interaction.reply({ content: boldAll('▫️ No active giveaway.'), ephemeral: true }).catch(() => { });
+                return true;
+            }
+
+            await replyEntriesPage(interaction, client, { page: 0 }).catch(() => { });
+            return true;
+        }
     }
 
     if (interaction.isModalSubmit()) {
@@ -550,6 +670,33 @@ async function handleStaffInteraction(interaction, client) {
     return false;
 }
 
+async function handleStaffEntriesInteraction(interaction, client) {
+    if (!interaction.isButton?.()) return false;
+    if (!interaction.customId?.startsWith(STAFF_ENTRIES_CUSTOM_ID_PREFIX)) return false;
+
+    const member = interaction.member;
+    if (!isStaff(member)) {
+        await interaction.reply({ content: boldAll('▫️ You do not have permission to use this.'), ephemeral: true }).catch(() => { });
+        return true;
+    }
+
+    const rest = String(interaction.customId || '').slice(STAFF_ENTRIES_CUSTOM_ID_PREFIX.length);
+    const parts = rest.split('_');
+    const dir = parts[0];
+    const current = Number(parts[1] || 0);
+    const nextPage = dir === 'prev' ? current - 1 : current + 1;
+
+    // Convert interaction to an editable ephemeral message.
+    try {
+        await interaction.deferUpdate().catch(() => { });
+    } catch (_) {
+        // ignore
+    }
+
+    await replyEntriesPage(interaction, client, { page: nextPage });
+    return true;
+}
+
 async function handlePublicInteraction(interaction) {
     if (!interaction.customId?.startsWith(PUBLIC_CUSTOM_ID_PREFIX)) return false;
 
@@ -561,6 +708,15 @@ async function handlePublicInteraction(interaction) {
         }
 
         await interaction.reply({ content: boldAll(`▫️ Ticket Issued: ${res.ticketId}`), ephemeral: true }).catch(() => { });
+
+        // Live entries tracker: update public giveaway embed only when a NEW ticket is created.
+        try {
+            if (res.isNew) {
+                await updateActiveGiveawayMessage(interaction.client);
+            }
+        } catch (_) {
+            // ignore
+        }
         return true;
     }
 
@@ -622,6 +778,7 @@ module.exports = {
     recordInviteLeaveForActive,
 
     handleStaffInteraction,
+    handleStaffEntriesInteraction,
     handlePublicInteraction,
 
     buildSlashGwyInvitesCommand,

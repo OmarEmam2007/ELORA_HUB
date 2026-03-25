@@ -102,6 +102,9 @@ module.exports = {
                 const handledStaff = await giveawayService.handleStaffInteraction(interaction, client);
                 if (handledStaff) return;
 
+                const handledEntries = await giveawayService.handleStaffEntriesInteraction(interaction, client);
+                if (handledEntries) return;
+
                 const handledPublic = await giveawayService.handlePublicInteraction(interaction, client);
                 if (handledPublic) return;
             }
