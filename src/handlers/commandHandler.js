@@ -11,7 +11,8 @@ async function loadCommands(client) {
         const files = fs
             .readdirSync(path.join(__dirname, `../commands/${folder}`))
             .filter((file) => file.endsWith('.js'))
-            .filter((file) => !file.includes('-old') && !file.includes('-new'));
+            .filter((file) => !file.includes('-old') && !file.includes('-new'))
+            .filter((file) => file !== 'pic.js');
         for (const file of files) {
             const command = require(`../commands/${folder}/${file}`);
             if (command.data) {

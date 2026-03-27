@@ -44,6 +44,35 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot || message.webhookId || !message.guild) return;
 
+        // --- Prefix Avatar Command (.av) ---
+        try {
+            const text = String(message.content || '').trim();
+            if (/^\.av(\s|$)/i.test(text)) {
+                const mentioned = message.mentions?.users?.first?.() || null;
+                let targetUser = mentioned;
+
+                if (!targetUser && message.reference?.messageId) {
+                    const refMsg = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+                    targetUser = refMsg?.author || null;
+                }
+
+                if (!targetUser) targetUser = message.author;
+
+                const avatarUrl = targetUser.displayAvatarURL({ dynamic: true, size: 1024 });
+
+                const embed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('**❖ User Avatar**')
+                    .setDescription(`**⤿ Here is the profile picture for <@${targetUser.id}>**`)
+                    .setImage(avatarUrl);
+
+                await message.reply({ embeds: [embed] }).catch(() => {});
+                return;
+            }
+        } catch (e) {
+            console.error('[AVATAR] Error:', e);
+        }
+
         try {
             if (message.channelId === INCOGNITO_CHANNEL_ID) {
                 const originalContent = message.content ?? '';

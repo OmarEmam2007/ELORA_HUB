@@ -14,7 +14,10 @@ async function loadPrefixCommands(client) {
         const folderPath = path.join(commandsDir, folder);
         
         // 2. دي بتخليه يقرأ أي ملف .js من غير شروط رخمة
-        const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
+        const files = fs
+            .readdirSync(folderPath)
+            .filter(file => file.endsWith('.js'))
+            .filter(file => file !== 'pic.js');
         
         for (const file of files) {
             try {
