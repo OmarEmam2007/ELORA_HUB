@@ -1,5 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const ModSettings = require('../../models/ModSettings');
+const mongoose = require('mongoose');
+const boostSettingsStore = require('../../services/boostSettingsStore');
 
 const BOOSTER_ROLE_ID = '1482180640291029052';
 
@@ -40,55 +42,90 @@ module.exports = {
              console.error('[Girls Welcome] Unexpected error in girls welcome system:', err);
          }
 
-        // التحقق من حالة البوست (هل بدأ بعمل بوست الآن؟)
-        const oldStatus = oldMember.premiumSince;
-        const newStatus = newMember.premiumSince;
+        // Boost tracking
+        const oldPremiumSince = oldMember.premiumSince;
+        const newPremiumSince = newMember.premiumSince;
 
-        const isBoostingNow = Boolean(newStatus);
-        const wasBoostingBefore = Boolean(oldStatus);
-        const isNewBoost = !wasBoostingBefore && isBoostingNow;
-        const missingBoosterRole = isBoostingNow && !newMember.roles.cache.has(BOOSTER_ROLE_ID);
+        const premiumSinceTransition = !oldPremiumSince && !!newPremiumSince;
+
+        let oldCount = await boostSettingsStore.getLastPremiumSubscriptionCount(guild.id);
+        const currentCount = typeof guild.premiumSubscriptionCount === 'number' ? guild.premiumSubscriptionCount : null;
+
+        if (oldCount === null && mongoose.connection?.readyState === 1) {
+            const mongoSettings = await ModSettings.findOne({ guildId: guild.id }).catch(() => null);
+            if (mongoSettings && typeof mongoSettings.lastPremiumSubscriptionCount === 'number') {
+                oldCount = mongoSettings.lastPremiumSubscriptionCount;
+            }
+        }
+
+        const countIncreased = typeof oldCount === 'number' && typeof currentCount === 'number' && currentCount > oldCount;
+        const isBoostDetected = premiumSinceTransition || countIncreased;
 
         if (DEBUG) {
             console.log(
                 `[BOOST] guildMemberUpdate user=${newMember.user?.tag || newMember.id} ` +
-                `oldPremium=${oldStatus ? 'yes' : 'no'} newPremium=${newStatus ? 'yes' : 'no'} ` +
-                `isNewBoost=${isNewBoost} missingRole=${missingBoosterRole}`
+                `oldPremium=${oldPremiumSince ? 'yes' : 'no'} newPremium=${newPremiumSince ? 'yes' : 'no'} ` +
+                `transition=${premiumSinceTransition} oldCount=${oldCount} currentCount=${currentCount} increased=${countIncreased}`
             );
         }
 
-        // If they are not boosting, nothing to do.
-        if (!isBoostingNow) return;
-
-        // Main path: they just boosted OR we detected they are boosting but don't have the role.
-        if (isNewBoost || missingBoosterRole) {
-            try {
-                // 1. إعطاء الرتبة
-                if (!newMember.roles.cache.has(BOOSTER_ROLE_ID)) {
-                    await newMember.roles.add(BOOSTER_ROLE_ID).catch(err => console.error('Error adding booster role:', err));
-                    if (DEBUG) console.log('[BOOST] booster role add attempted');
+        if (!isBoostDetected) {
+            if (typeof currentCount === 'number') {
+                await boostSettingsStore.setLastPremiumSubscriptionCount(guild.id, currentCount);
+                if (mongoose.connection?.readyState === 1) {
+                    await ModSettings.updateOne(
+                        { guildId: guild.id },
+                        { $setOnInsert: { guildId: guild.id }, $set: { lastPremiumSubscriptionCount: currentCount } },
+                        { upsert: true }
+                    ).catch(() => null);
                 }
+            }
+            return;
+        }
 
-                // 2. إرسال الإشعار في القناة المحددة
-                const settings = await ModSettings.findOne({ guildId: guild.id });
-                if (isNewBoost && settings && settings.boosterChannelId) {
-                    const channel = await guild.channels.fetch(settings.boosterChannelId).catch(() => null);
-                    if (channel) {
-                        const embed = new EmbedBuilder()
-                            .setColor('#ff73fa')
-                            .setTitle('💎 New Server Booster!')
-                            .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }))
-                            .setDescription(`Thank you ${newMember} for boosting the server! 💖\nYou have automatically received the <@&${BOOSTER_ROLE_ID}> role.`)
-                            .setImage('https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNHJndXpueXF4ZzR6NHJndXpueXF4ZzR6NHJndXpueXF4ZzR6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKVUn7iM8FMEU24/giphy.gif')
-                            .setTimestamp();
-
-                        await channel.send({ content: `${newMember}`, embeds: [embed] }).catch(err => console.error('Error sending booster message:', err));
-                    }
-                } else if (DEBUG && !isNewBoost) {
-                    console.log('[BOOST] no announcement sent (not a new boost event)');
+        try {
+            let boostChannelId = await boostSettingsStore.getBoosterChannelId(guild.id);
+            if (!boostChannelId && mongoose.connection?.readyState === 1) {
+                const settings = await ModSettings.findOne({ guildId: guild.id }).catch(() => null);
+                boostChannelId = settings?.boosterChannelId || null;
+                if (boostChannelId) {
+                    await boostSettingsStore.setBoosterChannelId(guild.id, boostChannelId);
                 }
-            } catch (error) {
-                console.error('Error in guildMemberUpdate (Booster Logic):', error);
+            }
+
+            if (!newMember.roles.cache.has(BOOSTER_ROLE_ID)) {
+                await newMember.roles.add(BOOSTER_ROLE_ID).catch(() => null);
+            }
+
+            if (!boostChannelId) return;
+
+            const channel = await guild.channels.fetch(boostChannelId).catch(() => null);
+            if (!channel || !channel.isTextBased()) return;
+
+            const memberId = newMember.id;
+
+            await channel.send({ content: `**✓ <@${memberId}> just boosted the server!**` });
+
+            const embed = new EmbedBuilder()
+                .setColor('#000000')
+                .setTitle('**❖ New Server Boost**')
+                .setDescription(`**⤿ Thank you <@${memberId}> for supporting ELORA.**\n**▫️ The server now has ${guild.premiumSubscriptionCount || 0} total boosts.**`)
+                .setThumbnail(newMember.user.displayAvatarURL({ size: 256 }))
+                .setTimestamp();
+
+            await channel.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Error in guildMemberUpdate (Boost Tracking):', error);
+        } finally {
+            if (typeof currentCount === 'number') {
+                await boostSettingsStore.setLastPremiumSubscriptionCount(guild.id, currentCount);
+                if (mongoose.connection?.readyState === 1) {
+                    await ModSettings.updateOne(
+                        { guildId: guild.id },
+                        { $setOnInsert: { guildId: guild.id }, $set: { lastPremiumSubscriptionCount: currentCount } },
+                        { upsert: true }
+                    ).catch(() => null);
+                }
             }
         }
     }

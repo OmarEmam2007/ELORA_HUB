@@ -6,6 +6,7 @@ const modSettingsSchema = new mongoose.Schema({
     mode: { type: String, enum: ['normal', 'strict'], default: 'normal' },
     logChannelId: { type: String, default: null },
     boosterChannelId: { type: String, default: null },
+    lastPremiumSubscriptionCount: { type: Number, default: null },
     sensitivity: { type: Number, default: 3 }, // 1-5
     multilingual: { type: Boolean, default: true },
     learningMode: { type: Boolean, default: true },
