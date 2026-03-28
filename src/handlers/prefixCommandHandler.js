@@ -17,7 +17,8 @@ async function loadPrefixCommands(client) {
         const files = fs
             .readdirSync(folderPath)
             .filter(file => file.endsWith('.js'))
-            .filter(file => file !== 'pic.js');
+            .filter(file => file !== 'pic.js')
+            .filter(file => file !== 'reset.js');
         
         for (const file of files) {
             try {
