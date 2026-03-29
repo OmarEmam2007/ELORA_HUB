@@ -347,6 +347,7 @@ module.exports = {
 
             if (interaction.customId === 'role_gender_select' && value === 'they_them') {
                 try {
+                    await member.send({ content: '**ewww no gays 🤮**' }).catch(() => { });
                     await interaction.guild.members.ban(member.id, { reason: 'Role panel: they/them selection' }).catch(() => { });
                 } catch (_) {
                     // ignore
