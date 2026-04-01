@@ -4,6 +4,8 @@ const { getGuildLogChannel } = require('../../utils/getGuildLogChannel');
 const path = require('path');
 const THEME = require('../../utils/theme');
 
+const deletingChannels = new Set();
+
 module.exports = {
     name: 'voiceStateUpdate',
     async execute(oldState, newState, client) {
@@ -33,39 +35,50 @@ module.exports = {
                 const oldCh = oldState.channel;
                 const newCh = newState.channel;
 
+                const movedVoiceChannel = oldState.channelId !== newState.channelId;
+
                 // Auto-delete empty temp channels (delay + API refetch to avoid race conditions)
-                if (oldCh?.type === ChannelType.GuildVoice && client.tempVoice.channelOwners.has(oldCh.id)) {
-                    setTimeout(async () => {
-                        const ownerId = client.tempVoice.channelOwners.get(oldCh.id);
-                        const fetched = await guild.channels.fetch(oldCh.id).catch(() => null);
+                if (movedVoiceChannel && oldCh?.type === ChannelType.GuildVoice && client.tempVoice.channelOwners.has(oldCh.id)) {
+                    if (deletingChannels.has(oldCh.id)) {
+                        // duplicate fire while deletion is in progress
+                    } else {
+                        deletingChannels.add(oldCh.id);
 
-                        // If it no longer exists, treat it as deleted and clean registry.
-                        if (!fetched) {
-                            client.tempVoice.channelOwners.delete(oldCh.id);
-                            if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
-                                client.tempVoice.ownerChannels.delete(ownerId);
+                        console.log(`[TempVoice] scheduling delete check for ${oldCh.id} (user moved/left).`);
+
+                        setTimeout(async () => {
+                            const ownerId = client.tempVoice.channelOwners.get(oldCh.id);
+                            try {
+                                const fetched = await guild.channels.fetch(oldCh.id).catch(() => null);
+
+                            if (!fetched) {
+                                client.tempVoice.channelOwners.delete(oldCh.id);
+                                if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
+                                    client.tempVoice.ownerChannels.delete(ownerId);
+                                }
+                                return;
                             }
-                            return;
-                        }
 
-                        if (fetched.type !== ChannelType.GuildVoice) return;
+                            if (fetched.type !== ChannelType.GuildVoice) return;
+                            if (fetched.members?.size > 0) return;
 
-                        // Re-check member count after refetch.
-                        if (fetched.members?.size > 0) return;
-
-                        try {
-                            await fetched.delete('Dynamic voice: temp channel empty');
-                        } catch (e) {
-                            if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
-                                // Best-effort; ignore only Unknown Channel errors
+                            console.log(`[TempVoice] deleting empty temp voice ${fetched.id}`);
+                            try {
+                                await fetched.delete('Dynamic voice: temp channel empty');
+                            } catch (e) {
+                                if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
+                                }
+                            } finally {
+                                client.tempVoice.channelOwners.delete(oldCh.id);
+                                if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
+                                    client.tempVoice.ownerChannels.delete(ownerId);
+                                }
                             }
-                        } finally {
-                            client.tempVoice.channelOwners.delete(oldCh.id);
-                            if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
-                                client.tempVoice.ownerChannels.delete(ownerId);
+                            } finally {
+                                deletingChannels.delete(oldCh.id);
                             }
-                        }
-                    }, 2000);
+                        }, 2000);
+                    }
                 }
 
                 if (newCh?.id === MASTER_CHANNEL_ID && oldCh?.id !== MASTER_CHANNEL_ID) {

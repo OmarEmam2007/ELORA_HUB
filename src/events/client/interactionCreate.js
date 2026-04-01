@@ -13,6 +13,8 @@ const MarriageProposal = require('../../models/MarriageProposal');
 const { withTransaction } = require('../../services/marriageService');
 const giveawayService = require('../../services/giveawayService');
 
+const deletingTicketChannels = new Set();
+
 const TVCP = {
     PREFIX: 'tvcp_',
     lastChannelByUser: new Map(),
@@ -1279,6 +1281,8 @@ module.exports = {
                 try {
                     const threadName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-_]/g, '');
 
+                    console.log(`[TICKET] creating ticket thread: ${threadName} (user=${interaction.user.id})`);
+
                     // Ensure the ticket opener can write in threads under this parent channel
                     // (Thread send permissions are inherited from the parent channel)
                     try {
@@ -1364,7 +1368,26 @@ module.exports = {
                     return safeReply({ content: 'Only Staff can close this ticket.', ephemeral: true });
                 }
 
-                await safeReply({ content: '🔒 Closing...' });
+                if (deletingTicketChannels.has(interaction.channelId)) return;
+                deletingTicketChannels.add(interaction.channelId);
+
+                await interaction.deferUpdate().catch(() => { });
+                try {
+                    const rows = interaction.message?.components;
+                    if (rows?.length) {
+                        const disabled = rows.map((row) => {
+                            const r = ActionRowBuilder.from(row);
+                            r.components = r.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
+                            return r;
+                        });
+                        await interaction.message.edit({ components: disabled }).catch(() => { });
+                    }
+                } catch (_) {
+                    // ignore
+                }
+
+                console.log(`[TICKET] deleting ticket channel/thread: ${interaction.channelId} (trigger=close_ticket by ${interaction.user.id})`);
+
                 try {
                     await new Promise((r) => setTimeout(r, 2000));
                     const fetched = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
@@ -1377,6 +1400,8 @@ module.exports = {
                     });
                 } catch (_) {
                     // ignore
+                } finally {
+                    deletingTicketChannels.delete(interaction.channelId);
                 }
                 return;
             }
@@ -1396,7 +1421,13 @@ module.exports = {
                     return safeReply({ content: '❌ Admin only.', ephemeral: true });
                 }
 
-                await safeReply({ content: '🔒 Closing...' , ephemeral: true });
+                if (deletingTicketChannels.has(interaction.channelId)) return;
+                deletingTicketChannels.add(interaction.channelId);
+
+                await interaction.deferUpdate().catch(() => { });
+
+                console.log(`[TICKET] deleting ticket channel/thread: ${interaction.channelId} (trigger=ticket_close by ${interaction.user.id})`);
+
                 try {
                     await new Promise((r) => setTimeout(r, 2000));
                     const fetched = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
@@ -1409,6 +1440,8 @@ module.exports = {
                     });
                 } catch (_) {
                     // ignore
+                } finally {
+                    deletingTicketChannels.delete(interaction.channelId);
                 }
                 return;
             }
@@ -1549,6 +1582,8 @@ module.exports = {
                 new Map(overwrites.map((o) => [o.id, o])).values()
             );
 
+            console.log(`[TICKET] creating ticket channel: ${channelName} (type=${value}, user=${interaction.user.id})`);
+
             const created = await interaction.guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
@@ -1563,8 +1598,8 @@ module.exports = {
                     parentId,
                     userId: interaction.user?.id,
                     guildId: interaction.guild?.id,
-                    error: e
                 });
+                console.error(e);
                 return null;
             });
 
