@@ -1,6 +1,8 @@
 const User = require('../../models/User');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, ChannelType } = require('discord.js');
 const { getGuildLogChannel } = require('../../utils/getGuildLogChannel');
+const path = require('path');
+const THEME = require('../../utils/theme');
 
 module.exports = {
     name: 'voiceStateUpdate',
@@ -31,14 +33,39 @@ module.exports = {
                 const oldCh = oldState.channel;
                 const newCh = newState.channel;
 
-                // Auto-delete empty temp channels (ID-based, strict)
-                if (oldCh?.type === 2 && client.tempVoice.channelOwners.has(oldCh.id) && oldCh.members?.size === 0) {
-                    const ownerId = client.tempVoice.channelOwners.get(oldCh.id);
-                    await oldCh.delete('Dynamic voice: temp channel empty').catch(() => { });
-                    client.tempVoice.channelOwners.delete(oldCh.id);
-                    if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
-                        client.tempVoice.ownerChannels.delete(ownerId);
-                    }
+                // Auto-delete empty temp channels (delay + API refetch to avoid race conditions)
+                if (oldCh?.type === ChannelType.GuildVoice && client.tempVoice.channelOwners.has(oldCh.id)) {
+                    setTimeout(async () => {
+                        const ownerId = client.tempVoice.channelOwners.get(oldCh.id);
+                        const fetched = await guild.channels.fetch(oldCh.id).catch(() => null);
+
+                        // If it no longer exists, treat it as deleted and clean registry.
+                        if (!fetched) {
+                            client.tempVoice.channelOwners.delete(oldCh.id);
+                            if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
+                                client.tempVoice.ownerChannels.delete(ownerId);
+                            }
+                            return;
+                        }
+
+                        if (fetched.type !== ChannelType.GuildVoice) return;
+
+                        // Re-check member count after refetch.
+                        if (fetched.members?.size > 0) return;
+
+                        try {
+                            await fetched.delete('Dynamic voice: temp channel empty');
+                        } catch (e) {
+                            if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
+                                // Best-effort; ignore only Unknown Channel errors
+                            }
+                        } finally {
+                            client.tempVoice.channelOwners.delete(oldCh.id);
+                            if (ownerId && client.tempVoice.ownerChannels.get(ownerId) === oldCh.id) {
+                                client.tempVoice.ownerChannels.delete(ownerId);
+                            }
+                        }
+                    }, 2000);
                 }
 
                 if (newCh?.id === MASTER_CHANNEL_ID && oldCh?.id !== MASTER_CHANNEL_ID) {
@@ -75,6 +102,50 @@ module.exports = {
 
                         await newState.setChannel(created).catch(() => { });
                         console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
+
+                        try {
+                            const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
+                            const embed = new EmbedBuilder()
+                                .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
+                                .setDescription('**Temp Voice Control**')
+                                .setImage('attachment://1234.png');
+
+                            const row1 = new ActionRowBuilder().addComponents(
+                                new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
+                                new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unlock'),
+                                new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Hide'),
+                                new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unhide'),
+                                new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Bitrate')
+                            );
+
+                            const row2 = new ActionRowBuilder().addComponents(
+                                new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Transfer Owner'),
+                                new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('User Limit'),
+                                new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Rename'),
+                                new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Me'),
+                                new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Member')
+                            );
+
+                            const row3 = new ActionRowBuilder().addComponents(
+                                new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Mute Member'),
+                                new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unmute Member'),
+                                new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Deafen Member'),
+                                new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Undeafen Member'),
+                                new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('▫️').setLabel('Kick Member')
+                            );
+
+                            if (typeof created.send === 'function') {
+                                await created.send({
+                                    content: `<@${member.id}>`,
+                                    allowedMentions: { users: [member.id] },
+                                    files: [banner],
+                                    embeds: [embed],
+                                    components: [row1, row2, row3]
+                                }).catch(() => { });
+                            }
+                        } catch (_) {
+                            // Best-effort
+                        }
                     } else {
                         console.log(`[TempVoice] Create returned null for ${member.user.tag}. Check permission/errors above.`);
                     }

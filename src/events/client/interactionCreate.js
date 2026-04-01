@@ -1365,10 +1365,20 @@ module.exports = {
                 }
 
                 await safeReply({ content: '🔒 Closing...' });
-                if (interaction.channel?.isThread?.()) {
-                    return interaction.channel.delete().catch(() => { });
+                try {
+                    await new Promise((r) => setTimeout(r, 2000));
+                    const fetched = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
+                    if (!fetched) return;
+                    if (!fetched.deletable) return;
+                    await fetched.delete('Ticket close (safe delete)').catch((e) => {
+                        if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
+                            // ignore
+                        }
+                    });
+                } catch (_) {
+                    // ignore
                 }
-                return setTimeout(() => interaction.channel.delete().catch(() => { }), 5000);
+                return;
             }
 
             if (interaction.customId === 'ticket_close') {
@@ -1388,9 +1398,15 @@ module.exports = {
 
                 await safeReply({ content: '🔒 Closing...' , ephemeral: true });
                 try {
-                    if (interaction.channel && interaction.channel.deletable) {
-                        return interaction.channel.delete().catch(() => { });
-                    }
+                    await new Promise((r) => setTimeout(r, 2000));
+                    const fetched = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
+                    if (!fetched) return;
+                    if (!fetched.deletable) return;
+                    await fetched.delete('Ticket close (safe delete)').catch((e) => {
+                        if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
+                            // ignore
+                        }
+                    });
                 } catch (_) {
                     // ignore
                 }
