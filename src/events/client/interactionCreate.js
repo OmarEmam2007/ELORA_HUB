@@ -14,6 +14,8 @@ const { withTransaction } = require('../../services/marriageService');
 const giveawayService = require('../../services/giveawayService');
 
 const deletingTicketChannels = new Set();
+const partnershipTicketState = new Map();
+const partnershipAdminRequests = new Map();
 
 const TVCP = {
     PREFIX: 'tvcp_',
@@ -1492,6 +1494,170 @@ module.exports = {
             }
         }
 
+        if (interaction.isButton?.() && interaction.customId === 'partner_verify') {
+            if (!interaction.guild || !interaction.channel || interaction.channel.type !== ChannelType.GuildText) {
+                return safeReply({ content: '❌ Invalid channel.', ephemeral: true });
+            }
+
+            const state = partnershipTicketState.get(interaction.channelId);
+            if (!state || !state.userId || !state.adText) {
+                return safeReply({ content: '❌ This partnership ticket is not ready for verification yet.', ephemeral: true });
+            }
+
+            if (interaction.user.id !== state.userId) {
+                return safeReply({ content: '❌ Only the ticket owner can verify.', ephemeral: true });
+            }
+
+            const msgs = await interaction.channel.messages.fetch({ limit: 10 }).catch(() => null);
+            const found = msgs
+                ? msgs.find((m) => {
+                    if (m.author?.id !== state.userId) return false;
+                    const atts = Array.from(m.attachments?.values?.() || []);
+                    return atts.some((a) => String(a.contentType || '').startsWith('image/') || String(a.name || '').match(/\.(png|jpe?g|gif|webp)$/i));
+                })
+                : null;
+
+            if (!found) {
+                return safeReply({ content: 'Please upload the screenshot first before clicking verify.', ephemeral: true });
+            }
+
+            const attachment = Array.from(found.attachments.values())[0];
+            const adminChannelId = '1489647248186015776';
+            const adminChannel = interaction.guild.channels.cache.get(adminChannelId) || await interaction.guild.channels.fetch(adminChannelId).catch(() => null);
+            if (!adminChannel || adminChannel.type !== ChannelType.GuildText) {
+                return safeReply({ content: '❌ Admin channel not found.', ephemeral: true });
+            }
+
+            await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+            const embed = new EmbedBuilder()
+                .setTitle('Partnership Request')
+                .addFields(
+                    { name: 'User', value: `${interaction.user.tag}`, inline: true },
+                    { name: 'User ID', value: `${interaction.user.id}`, inline: true },
+                    { name: 'Server Member Count', value: `${state.memberCount ?? 'Unknown'}`, inline: true },
+                    { name: 'Ad Text', value: String(state.adText).slice(0, 1024) || 'N/A' }
+                )
+                .setImage(attachment?.url)
+                .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('admin_partner_accept').setLabel('Accept').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('admin_partner_reject').setLabel('Reject').setStyle(ButtonStyle.Danger)
+            );
+
+            const sent = await adminChannel.send({ embeds: [embed], components: [row] }).catch(() => null);
+            if (!sent) {
+                return safeEdit({ content: '❌ Failed to send request to admins.' });
+            }
+
+            partnershipAdminRequests.set(sent.id, {
+                ticketChannelId: interaction.channelId,
+                userId: state.userId,
+                adText: state.adText,
+                memberCount: state.memberCount,
+                screenshotUrl: attachment?.url
+            });
+
+            return safeEdit({ content: '✅ Sent to admins for review.' });
+        }
+
+        if (interaction.isButton?.() && (interaction.customId === 'admin_partner_accept' || interaction.customId === 'admin_partner_reject')) {
+            if (!interaction.guild) return safeReply({ content: '❌ Invalid guild.', ephemeral: true });
+
+            const allowed = new Set(['1085496418745200730', '629373738772594728']);
+            if (!allowed.has(interaction.user.id) && !interaction.member?.permissions?.has?.(PermissionFlagsBits.Administrator)) {
+                return safeReply({ content: '❌ Admin only.', ephemeral: true });
+            }
+
+            const req = partnershipAdminRequests.get(interaction.message?.id);
+            if (!req) {
+                return safeReply({ content: '❌ This request is no longer available.', ephemeral: true });
+            }
+
+            await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+            const ticketChannel = interaction.guild.channels.cache.get(req.ticketChannelId) || await interaction.guild.channels.fetch(req.ticketChannelId).catch(() => null);
+            if (!ticketChannel || ticketChannel.type !== ChannelType.GuildText) {
+                partnershipAdminRequests.delete(interaction.message?.id);
+                return safeEdit({ content: '❌ Ticket channel not found (maybe already deleted).' });
+            }
+
+            const disableRows = (rows) => {
+                try {
+                    if (!rows?.length) return null;
+                    return rows.map((row) => {
+                        const r = ActionRowBuilder.from(row);
+                        r.components = r.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
+                        return r;
+                    });
+                } catch (_) {
+                    return null;
+                }
+            };
+
+            const disabled = disableRows(interaction.message?.components);
+            if (disabled) {
+                await interaction.message.edit({ components: disabled }).catch(() => { });
+            }
+
+            const botMsg = '<:name:1487391271759646750>';
+
+            if (interaction.customId === 'admin_partner_reject') {
+                await ticketChannel.send({ content: `${botMsg} **Sorry, your partnership request was rejected.**` }).catch(() => { });
+                partnershipAdminRequests.delete(interaction.message?.id);
+                partnershipTicketState.delete(ticketChannel.id);
+
+                if (!deletingTicketChannels.has(ticketChannel.id)) {
+                    deletingTicketChannels.add(ticketChannel.id);
+                    setTimeout(async () => {
+                        try {
+                            const fetched = await interaction.guild.channels.fetch(ticketChannel.id).catch(() => null);
+                            if (fetched?.deletable) await fetched.delete('Partnership rejected').catch(() => { });
+                        } catch (_) {
+                            // ignore
+                        } finally {
+                            deletingTicketChannels.delete(ticketChannel.id);
+                        }
+                    }, 5000);
+                }
+
+                return safeEdit({ content: '✅ Rejected.' });
+            }
+
+            const partnersChannelId = '1475546263977066606';
+            const partnersChannel = interaction.guild.channels.cache.get(partnersChannelId) || await interaction.guild.channels.fetch(partnersChannelId).catch(() => null);
+            if (!partnersChannel || partnersChannel.type !== ChannelType.GuildText) {
+                return safeEdit({ content: '❌ Partners channel not found.' });
+            }
+
+            await partnersChannel.send({
+                content: req.adText,
+                allowedMentions: { parse: ['everyone', 'roles'] }
+            }).catch(() => null);
+
+            await ticketChannel.send({ content: `${botMsg} **tysm! i putted ur ad in <#1475546263977066606> u can see it.**` }).catch(() => { });
+
+            partnershipAdminRequests.delete(interaction.message?.id);
+            partnershipTicketState.delete(ticketChannel.id);
+
+            if (!deletingTicketChannels.has(ticketChannel.id)) {
+                deletingTicketChannels.add(ticketChannel.id);
+                setTimeout(async () => {
+                    try {
+                        const fetched = await interaction.guild.channels.fetch(ticketChannel.id).catch(() => null);
+                        if (fetched?.deletable) await fetched.delete('Partnership accepted').catch(() => { });
+                    } catch (_) {
+                        // ignore
+                    } finally {
+                        deletingTicketChannels.delete(ticketChannel.id);
+                    }
+                }, 10000);
+            }
+
+            return safeEdit({ content: '✅ Accepted and posted.' });
+        }
+
         if (interaction.isStringSelectMenu?.() && interaction.customId === 'ticket_select') {
             await interaction.deferReply({ ephemeral: true }).catch(() => { });
 
@@ -1635,6 +1801,88 @@ module.exports = {
             }
 
             await safeEdit({ content: `✅ Ticket created: ${created}` });
+
+            if (value === 'partnerships') {
+                const botMsg = '<:name:1487391271759646750>';
+
+                await created.send({
+                    content: `${botMsg} **hello ${interaction.user}, put ur ad here (note: no servers less than 400 members). Please send your ad and invite link in ONE single message.**`
+                }).catch(() => { });
+
+                const inviteRegex = /(https?:\/\/)?(www\.)?(discord\.gg\/[\w-]+|discord\.com\/invite\/[\w-]+)/i;
+
+                const collector = created.createMessageCollector({
+                    filter: (m) => m.author?.id === interaction.user.id,
+                    time: 20 * 60 * 1000
+                });
+
+                collector.on('collect', async (m) => {
+                    const content = String(m.content || '');
+                    const match = content.match(inviteRegex);
+                    if (!match?.[0]) {
+                        await created.send({ content: `${botMsg} **This invite link is invalid or missing. Please send a valid ad with a link.**` }).catch(() => { });
+                        return;
+                    }
+
+                    const rawLink = match[0].startsWith('http') ? match[0] : `https://${match[0]}`;
+                    const invite = await client.fetchInvite(rawLink).catch(() => null);
+                    const memberCount = invite?.memberCount ?? invite?.approximateMemberCount;
+
+                    if (!invite || typeof memberCount !== 'number') {
+                        await created.send({ content: `${botMsg} **This invite link is invalid or missing. Please send a valid ad with a link.**` }).catch(() => { });
+                        return;
+                    }
+
+                    if (Number(memberCount) < 400) {
+                        await created.send({ content: `${botMsg} **sorry that server is less than 400 members**` }).catch(() => { });
+
+                        partnershipTicketState.delete(created.id);
+
+                        if (!deletingTicketChannels.has(created.id)) {
+                            deletingTicketChannels.add(created.id);
+                            setTimeout(async () => {
+                                try {
+                                    const fetched = await interaction.guild.channels.fetch(created.id).catch(() => null);
+                                    if (fetched?.deletable) await fetched.delete('Partnership: server < 400 members').catch(() => { });
+                                } catch (_) {
+                                    // ignore
+                                } finally {
+                                    deletingTicketChannels.delete(created.id);
+                                }
+                            }, 5000);
+                        }
+                        try { collector.stop('too_small'); } catch (_) { }
+                        return;
+                    }
+
+                    partnershipTicketState.set(created.id, {
+                        userId: interaction.user.id,
+                        adText: content,
+                        memberCount: Number(memberCount)
+                    });
+
+                    try { collector.stop('ok'); } catch (_) { }
+
+                    await created.send({ content: `${botMsg} **nice! now put our ad in ur server and send a screenshot of the ad here, then click the verify button.**` }).catch(() => { });
+
+                    await created.send({
+                        content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`
+                    }).catch(() => { });
+
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('partner_verify')
+                            .setLabel('Verify ✦')
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                    await created.send({ components: [row] }).catch(() => { });
+                });
+
+                collector.on('end', () => { });
+                return;
+            }
+
             try {
                 const toSmallCaps = (input) => {
                     const map = {
