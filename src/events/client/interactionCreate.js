@@ -332,7 +332,10 @@ module.exports = {
 
                 try { await m.delete().catch(() => { }); } catch (_) { }
 
-                const ack = await ticketChannel.send({ content: '✔ **Voice note secured and sent to staff.**' }).catch(() => null);
+                const ack = await ticketChannel.send({
+                    content: `<@${userId}> ✔ **Voice note secured and sent to staff.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => null);
                 if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
 
                 const voiceName = String(att.name || 'voice.ogg');
@@ -1625,16 +1628,25 @@ module.exports = {
 
         if (interaction.isButton?.() && interaction.customId === 'partner_verify') {
             if (!interaction.guild || !interaction.channel || interaction.channel.type !== ChannelType.GuildText) {
-                return safeReply({ content: '❌ Invalid channel.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **Invalid channel.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             const state = partnershipTicketState.get(interaction.channelId);
             if (!state || !state.userId || !state.adText) {
-                return safeReply({ content: '❌ This partnership ticket is not ready for verification yet.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **This partnership ticket is not ready for verification yet.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             if (interaction.user.id !== state.userId) {
-                return safeReply({ content: '❌ Only the ticket owner can verify.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **Only the ticket owner can verify.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             const msgs = await interaction.channel.messages.fetch({ limit: 10 }).catch(() => null);
@@ -1649,7 +1661,10 @@ module.exports = {
             if (!found) {
                 const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
                 await interaction.deferUpdate().catch(() => { });
-                const warn = await interaction.channel.send({ content: `${botMsg} **Please upload the screenshot first before clicking verify.**` }).catch(() => null);
+                const warn = await interaction.channel.send({
+                    content: `<@${state.userId}> ${botMsg} **Please upload the screenshot first before clicking verify.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => null);
                 if (warn?.deletable) {
                     setTimeout(() => warn.delete().catch(() => { }), 5000);
                 }
@@ -1683,7 +1698,10 @@ module.exports = {
 
             const sent = await adminChannel.send({ embeds: [embed], components: [row] }).catch(() => null);
             if (!sent) {
-                await interaction.channel.send({ content: '❌ Failed to send request to admins.' }).catch(() => { });
+                await interaction.channel.send({
+                    content: `<@${state.userId}> ✖ **Failed to send request to admins.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
                 return;
             }
 
@@ -1697,29 +1715,44 @@ module.exports = {
             });
 
             const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
-            await interaction.channel.send({ content: `${botMsg} **Screenshot received! Our staff has been notified and will review your request shortly.**` }).catch(() => { });
+            await interaction.channel.send({
+                content: `<@${state.userId}> ${botMsg} **Screenshot received! Our staff has been notified and will review your request shortly.**`,
+                allowedMentions: { parse: ['users'] }
+            }).catch(() => { });
             return;
         }
 
         if (interaction.isButton?.() && (interaction.customId === 'partner_proceed_yes' || interaction.customId === 'partner_proceed_no')) {
             if (!interaction.guild || !interaction.channel || interaction.channel.type !== ChannelType.GuildText) {
-                return safeReply({ content: '❌ Invalid channel.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **Invalid channel.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             const state = partnershipTicketState.get(interaction.channelId);
             if (!state || !state.userId || !state.adText) {
-                return safeReply({ content: '❌ This partnership ticket is not ready yet.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **This partnership ticket is not ready yet.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             if (interaction.user.id !== state.userId) {
-                return safeReply({ content: '❌ Only the ticket owner can use this.' });
+                return safeReply({
+                    content: `<@${interaction.user.id}> ✖ **Only the ticket owner can use this.**`,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
             await interaction.deferUpdate().catch(() => { });
 
             if (interaction.customId === 'partner_proceed_no') {
-                await interaction.channel.send({ content: `${botMsg} **Thank you for your time. Goodbye!**` }).catch(() => { });
+                await interaction.channel.send({
+                    content: `<@${state.userId}> ${botMsg} **Thank you for your time. Goodbye!**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
 
                 partnershipTicketState.delete(interaction.channelId);
 
@@ -1744,10 +1777,14 @@ module.exports = {
                 stripPings: true
             });
 
-            await interaction.channel.send({ content: `${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**` }).catch(() => { });
+            await interaction.channel.send({
+                content: `<@${state.userId}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
+                allowedMentions: { parse: ['users'] }
+            }).catch(() => { });
 
             await interaction.channel.send({
-                content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`
+                content: `<@${state.userId}> ${botMsg} **Advertisement to post:**\n\n⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`,
+                allowedMentions: { parse: ['users'] }
             }).catch(() => { });
 
             const row = new ActionRowBuilder().addComponents(
@@ -1806,7 +1843,10 @@ module.exports = {
             const ticketOwner = await interaction.guild.members.fetch(req.userId).catch(() => null);
 
             if (interaction.customId === 'admin_partner_reject') {
-                await ticketChannel.send({ content: `${botMsg} **Sorry, your partnership request has been declined. This ticket will close shortly.**` }).catch(() => { });
+                await ticketChannel.send({
+                    content: `<@${req.userId}> ${botMsg} **Sorry, your partnership request has been declined. This ticket will close shortly.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
 
                 try {
                     await ticketOwner?.send({ content: '**Hello! Unfortunately, your partnership request in ELORA was declined. Thank you for your interest.**' });
@@ -1837,7 +1877,10 @@ module.exports = {
             const partnersChannelId = '1475546263977066606';
             const partnersChannel = interaction.guild.channels.cache.get(partnersChannelId) || await interaction.guild.channels.fetch(partnersChannelId).catch(() => null);
             if (!partnersChannel || partnersChannel.type !== ChannelType.GuildText) {
-                await interaction.channel.send({ content: '❌ Partners channel not found.' }).catch(() => { });
+                await ticketChannel.send({
+                    content: `<@${req.userId}> ✖ **Partners channel not found.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
                 return;
             }
 
@@ -1848,7 +1891,10 @@ module.exports = {
                 allowedMentions: { parse: ['everyone', 'roles'] }
             }).catch(() => null);
 
-            await ticketChannel.send({ content: `${botMsg} **Success! Your advertisement is now live in <#1475546263977066606>. This ticket will close shortly.**` }).catch(() => { });
+            await ticketChannel.send({
+                content: `<@${req.userId}> ${botMsg} **Success! Your advertisement is now live in <#1475546263977066606>. This ticket will close shortly.**`,
+                allowedMentions: { parse: ['users'] }
+            }).catch(() => { });
 
             try {
                 const ratingRow = new ActionRowBuilder().addComponents(
@@ -1964,7 +2010,8 @@ module.exports = {
             if (interaction.customId === 'girls_verify_ask_pic') {
                 const emoji = getDynEmoji();
                 await ticketChannel.send({
-                    content: `${emoji} **For extra security, our staff requested a picture to confirm your identity. Please send a photo here (it will be deleted instantly for your privacy).**`
+                    content: `<@${openerId}> ${emoji} **For extra security, our staff requested a picture to confirm your identity. Please send a photo here (it will be deleted instantly for your privacy).**`,
+                    allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
                 try { state.imageCollector?.stop?.('replace'); } catch (_) { }
@@ -1985,7 +2032,10 @@ module.exports = {
 
                     try { await m.delete().catch(() => { }); } catch (_) { }
 
-                    const ack = await ticketChannel.send({ content: '✔ **Photo secured.**' }).catch(() => null);
+                    const ack = await ticketChannel.send({
+                        content: `<@${openerId}> ✔ **Photo secured.**`,
+                        allowedMentions: { parse: ['users'] }
+                    }).catch(() => null);
                     if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
 
                     const imgName = String(att.name || 'photo.png');
@@ -2011,7 +2061,8 @@ module.exports = {
                 girlsVerificationRequests.set(ticketChannel.id, { ...state, code: newCode, awaiting: 'voice' });
 
                 await ticketChannel.send({
-                    content: `✖ **Staff requested a retake. Please send a new voice note with the NEW code: ${newCode}**`
+                    content: `<@${openerId}> ✖ **Staff requested a retake. Please send a new voice note with the NEW code: ${newCode}**`,
+                    allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
                 await startGirlsVoiceCollector({ ticketChannel, userId: openerId, adminVaultId, code: newCode });
@@ -2028,7 +2079,10 @@ module.exports = {
                     }
                 }
 
-                await ticketChannel.send({ content: '✖ **Verification declined. Closing ticket...**' }).catch(() => { });
+                await ticketChannel.send({
+                    content: `<@${openerId}> ✖ **Verification declined. Closing ticket...**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
                 await new Promise((r) => setTimeout(r, 5000));
                 await safeDeleteTicketChannel(interaction.guild, ticketChannel.id, 'Girls verification declined');
                 return;
@@ -2072,7 +2126,10 @@ module.exports = {
                     }
                 }
 
-                await ticketChannel.send({ content: '✔ **Verification successful. Closing ticket...**' }).catch(() => { });
+                await ticketChannel.send({
+                    content: `<@${openerId}> ✔ **Verification successful. Closing ticket...**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
                 await new Promise((r) => setTimeout(r, 5000));
                 await safeDeleteTicketChannel(interaction.guild, ticketChannel.id, 'Girls verification accepted');
                 return;
@@ -2324,9 +2381,11 @@ module.exports = {
                 const adminVaultId = '1489682035642601584';
                 const code = genGirlsCode();
                 const emoji = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+                const dn = `${interaction.member?.displayName || interaction.user.displayName}`;
 
                 await created.send({
-                    content: `${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${interaction.user.username} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`
+                    content: `<@${interaction.user.id}> ${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${dn} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`,
+                    allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
                 girlsVerificationRequests.set(created.id, {
@@ -2346,7 +2405,8 @@ module.exports = {
                 const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
 
                 await created.send({
-                    content: `${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`
+                    content: `<@${interaction.user.id}> ${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`,
+                    allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
                 const inviteRegex = /(https?:\/\/)?(www\.)?(discord\.gg\/[\w-]+|discord\.com\/invite\/[\w-]+)/i;
@@ -2360,7 +2420,10 @@ module.exports = {
                     const content = String(m.content || '');
                     const match = content.match(inviteRegex);
                     if (!match?.[0]) {
-                        await created.send({ content: `${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**` }).catch(() => { });
+                        await created.send({
+                            content: `<@${interaction.user.id}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
+                            allowedMentions: { parse: ['users'] }
+                        }).catch(() => { });
                         return;
                     }
 
@@ -2369,7 +2432,10 @@ module.exports = {
                     const memberCount = invite?.memberCount ?? invite?.approximateMemberCount;
 
                     if (!invite || typeof memberCount !== 'number') {
-                        await created.send({ content: `${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**` }).catch(() => { });
+                        await created.send({
+                            content: `<@${interaction.user.id}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
+                            allowedMentions: { parse: ['users'] }
+                        }).catch(() => { });
                         return;
                     }
 
@@ -2389,7 +2455,8 @@ module.exports = {
                         );
 
                         await created.send({
-                            content: `${botMsg} **Attention: We do not allow @everyone or @here pings for servers with less than 400 members. If included, they will be automatically removed from your advertisement. Do you still wish to proceed?**`,
+                            content: `<@${interaction.user.id}> ${botMsg} **Attention: We do not allow @everyone or @here pings for servers with less than 400 members. If included, they will be automatically removed from your advertisement. Do you still wish to proceed?**`,
+                            allowedMentions: { parse: ['users'] },
                             components: [proceedRow]
                         }).catch(() => { });
                         return;
@@ -2404,10 +2471,14 @@ module.exports = {
 
                     try { collector.stop('ok'); } catch (_) { }
 
-                    await created.send({ content: `${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**` }).catch(() => { });
+                    await created.send({
+                        content: `<@${interaction.user.id}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
+                        allowedMentions: { parse: ['users'] }
+                    }).catch(() => { });
 
                     await created.send({
-                        content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`
+                        content: `<@${interaction.user.id}> ${botMsg} **Advertisement to post:**\n\n⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`,
+                        allowedMentions: { parse: ['users'] }
                     }).catch(() => { });
 
                     const row = new ActionRowBuilder().addComponents(
