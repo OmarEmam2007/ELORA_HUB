@@ -85,8 +85,11 @@ module.exports = {
                     console.log(`[TempVoice] ${member.user.tag} joined master (${MASTER_CHANNEL_ID}). Creating temp channel...`);
                     const parentId = newCh.parentId || null;
 
+                    const displayName = String(member.displayName || '').trim();
+                    const channelName = (displayName.length ? displayName : String(member.user.username || 'Voice')).slice(0, 100);
+
                     const created = await guild.channels.create({
-                        name: `Temp - ${member.user.username}`,
+                        name: channelName,
                         type: 2,
                         reason: `Dynamic voice created for ${member.user.tag} (${member.id})`,
                         permissionOverwrites: [
