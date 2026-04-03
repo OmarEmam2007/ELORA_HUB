@@ -1518,7 +1518,7 @@ module.exports = {
                 : null;
 
             if (!found) {
-                const botMsg = '<:elora:1487391271759646750>';
+                const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
                 await interaction.deferUpdate().catch(() => { });
                 const warn = await interaction.channel.send({ content: `${botMsg} **Please upload the screenshot first before clicking verify.**` }).catch(() => null);
                 if (warn?.deletable) {
@@ -1567,7 +1567,7 @@ module.exports = {
                 screenshotUrl: attachment?.url
             });
 
-            const botMsg = '<:elora:1487391271759646750>';
+            const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
             await interaction.channel.send({ content: `${botMsg} **Screenshot received! Our staff has been notified and will review your request shortly.**` }).catch(() => { });
             return;
         }
@@ -1586,7 +1586,7 @@ module.exports = {
                 return safeReply({ content: '❌ Only the ticket owner can use this.' });
             }
 
-            const botMsg = '<:elora:1487391271759646750>';
+            const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
             await interaction.deferUpdate().catch(() => { });
 
             if (interaction.customId === 'partner_proceed_no') {
@@ -1672,7 +1672,7 @@ module.exports = {
                 await interaction.message.edit({ components: disabled }).catch(() => { });
             }
 
-            const botMsg = '<:elora:1487391271759646750>';
+            const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
 
             const ticketOwner = await interaction.guild.members.fetch(req.userId).catch(() => null);
 
@@ -1774,6 +1774,12 @@ module.exports = {
             const rating = interaction.values?.[0];
             await interaction.deferUpdate().catch(() => { });
 
+            try {
+                await interaction.user.send({ content: '✔ **Feedback received. Thank you!**' });
+            } catch (_) {
+                // ignore
+            }
+
             const adminChannelId = '1489647248186015776';
             const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
             if (!adminChannel || adminChannel.type !== ChannelType.GuildText) return;
@@ -1811,7 +1817,7 @@ module.exports = {
 
         if (interaction.isModalSubmit?.() && interaction.customId === 'partner_feedback_modal') {
             const feedback = interaction.fields.getTextInputValue('partner_feedback_text');
-            await interaction.reply({ content: '✅ Feedback received.' }).catch(() => { });
+            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
 
             const adminChannelId = '1489647248186015776';
             const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
@@ -1975,7 +1981,7 @@ module.exports = {
             await safeEdit({ content: `✅ Ticket created: ${created}` });
 
             if (value === 'partnerships') {
-                const botMsg = '<:elora:1487391271759646750>';
+                const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
 
                 await created.send({
                     content: `${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`
