@@ -16,6 +16,8 @@ const giveawayService = require('../../services/giveawayService');
 const deletingTicketChannels = new Set();
 const partnershipTicketState = new Map();
 const partnershipAdminRequests = new Map();
+const girlsVerificationRequests = new Map();
+const girlsVerificationAdminIndex = new Map();
 
 const TVCP = {
     PREFIX: 'tvcp_',
@@ -226,6 +228,133 @@ module.exports = {
             } catch (_) {
                 return safeReply(payload);
             }
+        };
+
+        const getDynEmoji = () => `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+        const genGirlsCode = () => `ELORA-${Math.floor(100 + Math.random() * 900)}`;
+
+        const isAudioAttachment = (att) => {
+            const ct = String(att?.contentType || '').toLowerCase();
+            const name = String(att?.name || '').toLowerCase();
+            if (ct.startsWith('audio/')) return true;
+            return Boolean(name.match(/\.(ogg|mp3|m4a|wav|webm)$/i));
+        };
+
+        const isImageAttachment = (att) => {
+            const ct = String(att?.contentType || '').toLowerCase();
+            const name = String(att?.name || '').toLowerCase();
+            if (ct.startsWith('image/')) return true;
+            return Boolean(name.match(/\.(png|jpe?g|gif|webp)$/i));
+        };
+
+        const parseTicketOwnerFromTopic = (topic) => {
+            const t = String(topic || '');
+            const match = t.match(/User:\s*[^()]*\((\d+)\)/i);
+            return match?.[1] || null;
+        };
+
+        const safeDeleteTicketChannel = async (guild, channelId, reason) => {
+            if (!guild || !channelId) return;
+            if (deletingTicketChannels.has(channelId)) return;
+            deletingTicketChannels.add(channelId);
+            try {
+                const fetched = await guild.channels.fetch(channelId).catch(() => null);
+                if (!fetched) return;
+                if (!fetched.deletable) return;
+                await fetched.delete(reason || 'Ticket close').catch(() => { });
+            } catch (_) {
+                // ignore
+            } finally {
+                deletingTicketChannels.delete(channelId);
+            }
+        };
+
+        const sendGirlsVerificationToAdminVault = async ({ adminVaultId, ticketChannel, user, code, fileUrl, fileName, title }) => {
+            const adminChannel = await client.channels.fetch(adminVaultId).catch(() => null);
+            if (!adminChannel || !adminChannel.isTextBased?.()) return null;
+
+            const embed = new EmbedBuilder()
+                .setTitle(title || 'Girls Verification')
+                .addFields(
+                    { name: 'User', value: `${user.tag}`, inline: true },
+                    { name: 'User ID', value: `${user.id}`, inline: true },
+                    { name: 'Code', value: `${code}`, inline: true },
+                    { name: 'Ticket', value: `${ticketChannel}`, inline: false }
+                )
+                .setTimestamp();
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('girls_verify_accept').setLabel('Accept').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('girls_verify_reject').setLabel('Reject').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('girls_verify_ask_pic').setLabel('Request Picture').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('girls_verify_retake').setLabel('Retake Voice').setStyle(ButtonStyle.Secondary)
+            );
+
+            const sent = await adminChannel.send({
+                embeds: [embed],
+                files: fileUrl ? [{ attachment: fileUrl, name: fileName || 'file' }] : [],
+                components: [row]
+            }).catch(() => null);
+
+            if (sent?.id) {
+                girlsVerificationAdminIndex.set(sent.id, ticketChannel.id);
+            }
+
+            return sent;
+        };
+
+        const startGirlsVoiceCollector = async ({ ticketChannel, userId, adminVaultId, code }) => {
+            if (!ticketChannel?.isTextBased?.()) return;
+
+            const state = girlsVerificationRequests.get(ticketChannel.id) || {};
+            try { state.voiceCollector?.stop?.('replace'); } catch (_) { }
+
+            const collector = ticketChannel.createMessageCollector({
+                filter: (m) => {
+                    if (m.author?.id !== userId) return false;
+                    const atts = Array.from(m.attachments?.values?.() || []);
+                    return atts.some(isAudioAttachment);
+                },
+                time: 20 * 60 * 1000
+            });
+
+            girlsVerificationRequests.set(ticketChannel.id, {
+                ...state,
+                userId,
+                code,
+                awaiting: 'voice',
+                voiceCollector: collector
+            });
+
+            collector.on('collect', async (m) => {
+                const att = Array.from(m.attachments?.values?.() || []).find(isAudioAttachment);
+                if (!att) return;
+
+                try { await m.delete().catch(() => { }); } catch (_) { }
+
+                const ack = await ticketChannel.send({ content: '✔ **Voice note secured and sent to staff.**' }).catch(() => null);
+                if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
+
+                const voiceName = String(att.name || 'voice.ogg');
+                const sent = await sendGirlsVerificationToAdminVault({
+                    adminVaultId,
+                    ticketChannel,
+                    user: m.author,
+                    code,
+                    fileUrl: att.url,
+                    fileName: voiceName,
+                    title: 'Girls Verification - Voice Note'
+                });
+
+                if (sent?.id) {
+                    const latest = girlsVerificationRequests.get(ticketChannel.id) || {};
+                    girlsVerificationRequests.set(ticketChannel.id, { ...latest, adminMessageId: sent.id });
+                }
+
+                try { collector.stop('secured'); } catch (_) { }
+            });
+
+            collector.on('end', () => { });
         };
 
         if (!client.whisperSecrets) client.whisperSecrets = new Map();
@@ -1797,6 +1926,217 @@ module.exports = {
             return;
         }
 
+        if (interaction.isButton?.() && ['girls_verify_accept', 'girls_verify_reject', 'girls_verify_ask_pic', 'girls_verify_retake'].includes(interaction.customId)) {
+            const adminVaultId = '1489682035642601584';
+
+            if (!interaction.guild) {
+                await safeReply({ content: '✖ **This interaction can only be used in a server.**' }).catch(() => { });
+                return;
+            }
+
+            const inVault = interaction.channelId === adminVaultId;
+            if (!inVault) {
+                await safeReply({ content: '✖ **Invalid admin action context.**' }).catch(() => { });
+                return;
+            }
+
+            await interaction.deferUpdate().catch(() => { });
+
+            const ticketChannelId = girlsVerificationAdminIndex.get(interaction.message?.id);
+            const ticketChannel = ticketChannelId
+                ? await interaction.guild.channels.fetch(ticketChannelId).catch(() => null)
+                : null;
+
+            if (!ticketChannel || !ticketChannel.isTextBased?.()) {
+                await safeReply({ content: '✖ **Ticket channel not found.**' }).catch(() => { });
+                return;
+            }
+
+            const openerId = parseTicketOwnerFromTopic(ticketChannel.topic);
+            if (!openerId) {
+                await safeReply({ content: '✖ **Cannot detect ticket owner.**' }).catch(() => { });
+                return;
+            }
+
+            const state = girlsVerificationRequests.get(ticketChannel.id) || {};
+            const currentCode = String(state.code || '').trim() || 'N/A';
+
+            if (interaction.customId === 'girls_verify_ask_pic') {
+                const emoji = getDynEmoji();
+                await ticketChannel.send({
+                    content: `${emoji} **For extra security, our staff requested a picture to confirm your identity. Please send a photo here (it will be deleted instantly for your privacy).**`
+                }).catch(() => { });
+
+                try { state.imageCollector?.stop?.('replace'); } catch (_) { }
+                const collector = ticketChannel.createMessageCollector({
+                    filter: (m) => {
+                        if (m.author?.id !== openerId) return false;
+                        const atts = Array.from(m.attachments?.values?.() || []);
+                        return atts.some(isImageAttachment);
+                    },
+                    time: 20 * 60 * 1000
+                });
+
+                girlsVerificationRequests.set(ticketChannel.id, { ...state, imageCollector: collector, awaiting: 'photo' });
+
+                collector.on('collect', async (m) => {
+                    const att = Array.from(m.attachments?.values?.() || []).find(isImageAttachment);
+                    if (!att) return;
+
+                    try { await m.delete().catch(() => { }); } catch (_) { }
+
+                    const ack = await ticketChannel.send({ content: '✔ **Photo secured.**' }).catch(() => null);
+                    if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
+
+                    const imgName = String(att.name || 'photo.png');
+                    await sendGirlsVerificationToAdminVault({
+                        adminVaultId,
+                        ticketChannel,
+                        user: m.author,
+                        code: currentCode,
+                        fileUrl: att.url,
+                        fileName: imgName,
+                        title: 'Girls Verification - Photo'
+                    });
+
+                    try { collector.stop('secured'); } catch (_) { }
+                });
+
+                collector.on('end', () => { });
+                return;
+            }
+
+            if (interaction.customId === 'girls_verify_retake') {
+                const newCode = genGirlsCode();
+                girlsVerificationRequests.set(ticketChannel.id, { ...state, code: newCode, awaiting: 'voice' });
+
+                await ticketChannel.send({
+                    content: `✖ **Staff requested a retake. Please send a new voice note with the NEW code: ${newCode}**`
+                }).catch(() => { });
+
+                await startGirlsVoiceCollector({ ticketChannel, userId: openerId, adminVaultId, code: newCode });
+                return;
+            }
+
+            if (interaction.customId === 'girls_verify_reject') {
+                const userObj = await client.users.fetch(openerId).catch(() => null);
+                if (userObj) {
+                    try {
+                        await userObj.send({ content: '✖ **Sorry, your verification request in ELORA was declined.**' });
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+
+                await ticketChannel.send({ content: '✖ **Verification declined. Closing ticket...**' }).catch(() => { });
+                await new Promise((r) => setTimeout(r, 5000));
+                await safeDeleteTicketChannel(interaction.guild, ticketChannel.id, 'Girls verification declined');
+                return;
+            }
+
+            if (interaction.customId === 'girls_verify_accept') {
+                const VERIFIED_ROLE_ID = '1480220142213267476';
+                const UNVERIFIED_SHEHER_ROLE_ID = '1480007272368308356';
+
+                const member = await interaction.guild.members.fetch(openerId).catch(() => null);
+                if (member) {
+                    await member.roles.add(VERIFIED_ROLE_ID, 'Girls verification accepted').catch(() => { });
+                    await member.roles.remove(UNVERIFIED_SHEHER_ROLE_ID, 'Girls verification accepted').catch(() => { });
+                }
+
+                const userObj = await client.users.fetch(openerId).catch(() => null);
+                if (userObj) {
+                    try {
+                        const ratingMenu = new StringSelectMenuBuilder()
+                            .setCustomId('girls_rating_menu')
+                            .setPlaceholder('Rate your experience')
+                            .addOptions(
+                                { label: '1 Star ⭐', value: '1 ⭐' },
+                                { label: '2 Stars ⭐⭐', value: '2 ⭐⭐' },
+                                { label: '3 Stars ⭐⭐⭐', value: '3 ⭐⭐⭐' },
+                                { label: '4 Stars ⭐⭐⭐⭐', value: '4 ⭐⭐⭐⭐' },
+                                { label: '5 Stars ⭐⭐⭐⭐⭐', value: '5 ⭐⭐⭐⭐⭐' }
+                            );
+
+                        const ratingRow = new ActionRowBuilder().addComponents(ratingMenu);
+                        const feedbackRow = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId('girls_feedback_btn').setLabel('Leave Feedback').setStyle(ButtonStyle.Secondary)
+                        );
+
+                        await userObj.send({
+                            content: '✔ **Congratulations! Your verification in ELORA was successful. Welcome to the family! We would appreciate it if you could rate your experience below.**',
+                            components: [ratingRow, feedbackRow]
+                        });
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+
+                await ticketChannel.send({ content: '✔ **Verification successful. Closing ticket...**' }).catch(() => { });
+                await new Promise((r) => setTimeout(r, 5000));
+                await safeDeleteTicketChannel(interaction.guild, ticketChannel.id, 'Girls verification accepted');
+                return;
+            }
+        }
+
+        if (interaction.isStringSelectMenu?.() && interaction.customId === 'girls_rating_menu') {
+            const stars = String(interaction.values?.[0] || '').trim();
+            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
+
+            const adminChannelId = '1489682035642601584';
+            const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
+            if (!adminChannel || !adminChannel.isTextBased?.()) return;
+
+            const embed = new EmbedBuilder()
+                .setTitle('Girls Verification - Rating')
+                .addFields(
+                    { name: 'User', value: `${interaction.user.tag}`, inline: true },
+                    { name: 'User ID', value: `${interaction.user.id}`, inline: true },
+                    { name: 'Rating', value: `${stars}`, inline: true }
+                )
+                .setTimestamp();
+
+            await adminChannel.send({ embeds: [embed] }).catch(() => { });
+            return;
+        }
+
+        if (interaction.isButton?.() && interaction.customId === 'girls_feedback_btn') {
+            const modal = new ModalBuilder()
+                .setCustomId('girls_feedback_modal')
+                .setTitle('Girls Verification Feedback');
+
+            const input = new TextInputBuilder()
+                .setCustomId('girls_feedback_text')
+                .setLabel('Your feedback')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+                .setMaxLength(1000);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            return interaction.showModal(modal).catch(() => { });
+        }
+
+        if (interaction.isModalSubmit?.() && interaction.customId === 'girls_feedback_modal') {
+            const feedback = interaction.fields.getTextInputValue('girls_feedback_text');
+            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
+
+            const adminChannelId = '1489682035642601584';
+            const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
+            if (!adminChannel || !adminChannel.isTextBased?.()) return;
+
+            const embed = new EmbedBuilder()
+                .setTitle('Girls Verification - Written Feedback')
+                .addFields(
+                    { name: 'User', value: `${interaction.user.tag}`, inline: true },
+                    { name: 'User ID', value: `${interaction.user.id}`, inline: true },
+                    { name: 'Feedback', value: String(feedback || '').slice(0, 1024) || 'N/A', inline: false }
+                )
+                .setTimestamp();
+
+            await adminChannel.send({ embeds: [embed] }).catch(() => { });
+            return;
+        }
+
         if (interaction.isButton?.() && interaction.customId === 'partner_feedback_btn') {
             const modal = new ModalBuilder()
                 .setCustomId('partner_feedback_modal')
@@ -1980,6 +2320,28 @@ module.exports = {
 
             await safeEdit({ content: `✅ Ticket created: ${created}` });
 
+            if (value === 'girls_verification') {
+                const adminVaultId = '1489682035642601584';
+                const code = genGirlsCode();
+                const emoji = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+
+                await created.send({
+                    content: `${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${interaction.user.username} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`
+                }).catch(() => { });
+
+                girlsVerificationRequests.set(created.id, {
+                    userId: interaction.user.id,
+                    code,
+                    adminMessageId: null,
+                    voiceCollector: null,
+                    imageCollector: null,
+                    awaiting: 'voice'
+                });
+
+                await startGirlsVoiceCollector({ ticketChannel: created, userId: interaction.user.id, adminVaultId, code });
+                return;
+            }
+
             if (value === 'partnerships') {
                 const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
 
@@ -2075,15 +2437,6 @@ module.exports = {
                 };
 
                 const row = new ActionRowBuilder();
-                if (value === 'girls_verification') {
-                    row.addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('add_verified_role')
-                            .setLabel(toSmallCaps('ADD THE VERIFIED ROLE'))
-                            .setStyle(ButtonStyle.Success)
-                    );
-                }
-
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId('ticket_close')
@@ -2093,7 +2446,10 @@ module.exports = {
 
                 const mentionParts = [`<@${OWNER_USER_ID}>`, `<@${ADMIN_USER_ID}>`];
                 if (value === 'partnerships') mentionParts.push(`<@&${PARTNERSHIPS_ROLE_ID}>`);
-                if (value === 'girls_verification') mentionParts.push(`<@&${VERIFIER_ROLE_ID}>`);
+
+                if (value === 'girls_verification') {
+                    return;
+                }
 
                 await created.send({
                     content: `${mentionParts.join(' ')}\n${interaction.user}`,
@@ -2101,7 +2457,7 @@ module.exports = {
                         users: [OWNER_USER_ID, ADMIN_USER_ID],
                         roles: value === 'partnerships'
                             ? [PARTNERSHIPS_ROLE_ID]
-                            : (value === 'girls_verification' ? [VERIFIER_ROLE_ID] : [])
+                            : []
                     },
                     components: [row]
                 }).catch(() => { });
