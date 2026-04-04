@@ -100,7 +100,7 @@ module.exports = {
                 const bannerPath = path.join(__dirname, '../../assets', bannerName);
                 const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
-                const header = '**' + toSmallCaps('GOODBYE') + '**';
+                const header = "**We don't chase, we attract**";
                 const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);
                 const body = [
                     `**${toSmallCaps('USER')}:** ${member}`,
