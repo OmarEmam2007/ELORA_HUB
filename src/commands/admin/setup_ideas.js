@@ -27,19 +27,19 @@ module.exports = {
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('ideas_select')
-            .setPlaceholder('Select an option to provide your advice.')
+            .setPlaceholder('✦ Select an option to provide your advice.')
             .addOptions(
                 {
                     label: 'Advice on improving the server',
                     value: 'improve_server',
                     description: 'Share your ideas on how we can make this Discord server better.',
-                    emoji: '🏗️',
+                    emoji: { id: '1487391271759646750' },
                 },
                 {
                     label: 'Advice on improving the bot',
                     value: 'improve_bot',
                     description: 'Tell us what features or fixes you want to see in the bot.',
-                    emoji: '🤖',
+                    emoji: { id: '1487391271759646750' },
                 }
             );
 

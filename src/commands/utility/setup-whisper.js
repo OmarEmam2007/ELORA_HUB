@@ -24,17 +24,19 @@ module.exports = {
 
         const select = new StringSelectMenuBuilder()
             .setCustomId('whisper_type_select')
-            .setPlaceholder('Choose the type of message')
+            .setPlaceholder('✦ Choose the type of message')
             .addOptions(
                 {
                     label: 'Private Message',
                     value: 'private',
-                    description: 'Send a secret message to someone in DM'
+                    description: 'Send a secret message to someone in DM',
+                    emoji: { id: '1487391271759646750' }
                 },
                 {
                     label: 'Public Message',
                     value: 'public',
-                    description: 'Send a secret message to someone in main chat'
+                    description: 'Send a secret message to someone in main chat',
+                    emoji: { id: '1487391271759646750' }
                 }
             );
 

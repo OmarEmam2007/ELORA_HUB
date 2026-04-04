@@ -979,12 +979,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Kick from voice'
+                        description: 'Kick from voice',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}kick_select`)
-                        .setPlaceholder('Select a user to kick')
+                        .setPlaceholder('✦ Select a user to kick')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -999,12 +1000,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Unmute'
+                        description: 'Unmute',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}unmute_select`)
-                        .setPlaceholder('Select a user to unmute')
+                        .setPlaceholder('✦ Select a user to unmute')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1019,12 +1021,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Transfer ownership'
+                        description: 'Transfer ownership',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}transfer_select`)
-                        .setPlaceholder('Select a new owner')
+                        .setPlaceholder('✦ Select a new owner')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1039,12 +1042,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Move to your channel'
+                        description: 'Move to your channel',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}move_select`)
-                        .setPlaceholder('Select a user to move')
+                        .setPlaceholder('✦ Select a user to move')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1059,12 +1063,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Mute'
+                        description: 'Mute',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}mute_select`)
-                        .setPlaceholder('Select a user to mute')
+                        .setPlaceholder('✦ Select a user to mute')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1079,12 +1084,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Deafen'
+                        description: 'Deafen',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}deafen_select`)
-                        .setPlaceholder('Select a user to deafen')
+                        .setPlaceholder('✦ Select a user to deafen')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1099,12 +1105,13 @@ module.exports = {
                     const options = inChannel.map((m) => ({
                         label: m.user.username.slice(0, 100),
                         value: m.id,
-                        description: 'Undeafen'
+                        description: 'Undeafen',
+                        emoji: { id: '1487391271759646750' }
                     }));
 
                     const menu = new (require('discord.js').StringSelectMenuBuilder)()
                         .setCustomId(`${TVCP.PREFIX}undeafen_select`)
-                        .setPlaceholder('Select a user to undeafen')
+                        .setPlaceholder('✦ Select a user to undeafen')
                         .addOptions(options);
 
                     const row = new ActionRowBuilder().addComponents(menu);
@@ -1900,13 +1907,13 @@ module.exports = {
                 const ratingRow = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId('partner_rating_menu')
-                        .setPlaceholder('Rate your experience')
+                        .setPlaceholder('✦ Rate your experience')
                         .addOptions(
-                            { label: '⭐', value: '1', description: '1 Star' },
-                            { label: '⭐⭐', value: '2', description: '2 Stars' },
-                            { label: '⭐⭐⭐', value: '3', description: '3 Stars' },
-                            { label: '⭐⭐⭐⭐', value: '4', description: '4 Stars' },
-                            { label: '⭐⭐⭐⭐⭐', value: '5', description: '5 Stars' }
+                            { label: '⭐', value: '1', description: '1 Star', emoji: { id: '1487391271759646750' } },
+                            { label: '⭐⭐', value: '2', description: '2 Stars', emoji: { id: '1487391271759646750' } },
+                            { label: '⭐⭐⭐', value: '3', description: '3 Stars', emoji: { id: '1487391271759646750' } },
+                            { label: '⭐⭐⭐⭐', value: '4', description: '4 Stars', emoji: { id: '1487391271759646750' } },
+                            { label: '⭐⭐⭐⭐⭐', value: '5', description: '5 Stars', emoji: { id: '1487391271759646750' } }
                         )
                 );
 
@@ -2103,13 +2110,13 @@ module.exports = {
                     try {
                         const ratingMenu = new StringSelectMenuBuilder()
                             .setCustomId('girls_rating_menu')
-                            .setPlaceholder('Rate your experience')
+                            .setPlaceholder('✦ Rate your experience')
                             .addOptions(
-                                { label: '1 Star ⭐', value: '1 ⭐' },
-                                { label: '2 Stars ⭐⭐', value: '2 ⭐⭐' },
-                                { label: '3 Stars ⭐⭐⭐', value: '3 ⭐⭐⭐' },
-                                { label: '4 Stars ⭐⭐⭐⭐', value: '4 ⭐⭐⭐⭐' },
-                                { label: '5 Stars ⭐⭐⭐⭐⭐', value: '5 ⭐⭐⭐⭐⭐' }
+                                { label: '1 Star ⭐', value: '1 ⭐', emoji: { id: '1487391271759646750' } },
+                                { label: '2 Stars ⭐⭐', value: '2 ⭐⭐', emoji: { id: '1487391271759646750' } },
+                                { label: '3 Stars ⭐⭐⭐', value: '3 ⭐⭐⭐', emoji: { id: '1487391271759646750' } },
+                                { label: '4 Stars ⭐⭐⭐⭐', value: '4 ⭐⭐⭐⭐', emoji: { id: '1487391271759646750' } },
+                                { label: '5 Stars ⭐⭐⭐⭐⭐', value: '5 ⭐⭐⭐⭐⭐', emoji: { id: '1487391271759646750' } }
                             );
 
                         const ratingRow = new ActionRowBuilder().addComponents(ratingMenu);
@@ -2545,7 +2552,7 @@ module.exports = {
 
             const userSelect = new UserSelectMenuBuilder()
                 .setCustomId(`whisper_user_select_${type}`)
-                .setPlaceholder('Select the target user')
+                .setPlaceholder('✦ Select the target user')
                 .setMinValues(1)
                 .setMaxValues(1);
 

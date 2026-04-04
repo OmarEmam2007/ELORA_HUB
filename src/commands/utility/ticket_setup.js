@@ -33,13 +33,13 @@ module.exports = {
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('ticket_select')
-            .setPlaceholder(placeholder)
+            .setPlaceholder(`✦ ${placeholder}`)
             .addOptions(
-                { label: toSmallCaps('A PROBLEM IN THE SERVER'), description: toSmallCaps('REPORT BUGS OR RULE ISSUES'), value: 'server_problem' },
-                { label: toSmallCaps('PARTNERSHIPS'), description: toSmallCaps('COLLABS, SPONSORS, AND DEALS'), value: 'partnerships' },
-                { label: toSmallCaps('GIRLS VERIFICATION'), description: toSmallCaps('VERIFY TO GET FULL ACCESS'), value: 'girls_verification' },
-                { label: toSmallCaps('SOCIAL PROBLEM'), description: toSmallCaps('CONFLICTS, HARASSMENT, OR DRAMA'), value: 'social_problem' },
-                { label: toSmallCaps('OTHER'), description: toSmallCaps('ANYTHING ELSE YOU NEED HELP WITH'), value: 'other' }
+                { label: toSmallCaps('A PROBLEM IN THE SERVER'), description: toSmallCaps('REPORT BUGS OR RULE ISSUES'), value: 'server_problem', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('PARTNERSHIPS'), description: toSmallCaps('COLLABS, SPONSORS, AND DEALS'), value: 'partnerships', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('GIRLS VERIFICATION'), description: toSmallCaps('VERIFY TO GET FULL ACCESS'), value: 'girls_verification', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('SOCIAL PROBLEM'), description: toSmallCaps('CONFLICTS, HARASSMENT, OR DRAMA'), value: 'social_problem', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('OTHER'), description: toSmallCaps('ANYTHING ELSE YOU NEED HELP WITH'), value: 'other', emoji: { id: '1487391271759646750' } }
             );
 
         const row = new ActionRowBuilder().addComponents(menu);

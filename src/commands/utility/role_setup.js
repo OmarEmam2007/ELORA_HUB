@@ -34,30 +34,30 @@ module.exports = {
 
         const ageMenu = new StringSelectMenuBuilder()
             .setCustomId('role_age_select')
-            .setPlaceholder(agePlaceholder)
+            .setPlaceholder(`✦ ${agePlaceholder}`)
             .addOptions(
-                { label: toSmallCaps('13'), value: 'age_13' },
-                { label: toSmallCaps('14'), value: 'age_14' },
-                { label: toSmallCaps('15'), value: 'age_15' },
-                { label: toSmallCaps('16'), value: 'age_16' },
-                { label: toSmallCaps('17'), value: 'age_17' },
-                { label: toSmallCaps('18'), value: 'age_18' },
-                { label: toSmallCaps('19'), value: 'age_19' },
-                { label: toSmallCaps('20'), value: 'age_20' },
-                { label: toSmallCaps('21'), value: 'age_21' },
-                { label: toSmallCaps('22'), value: 'age_22' },
-                { label: toSmallCaps('23'), value: 'age_23' },
-                { label: toSmallCaps('24'), value: 'age_24' },
-                { label: toSmallCaps('25+'), value: 'age_25_plus' }
+                { label: toSmallCaps('13'), value: 'age_13', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('14'), value: 'age_14', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('15'), value: 'age_15', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('16'), value: 'age_16', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('17'), value: 'age_17', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('18'), value: 'age_18', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('19'), value: 'age_19', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('20'), value: 'age_20', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('21'), value: 'age_21', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('22'), value: 'age_22', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('23'), value: 'age_23', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('24'), value: 'age_24', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('25+'), value: 'age_25_plus', emoji: { id: '1487391271759646750' } }
             );
 
         const genderMenu = new StringSelectMenuBuilder()
             .setCustomId('role_gender_select')
-            .setPlaceholder(genderPlaceholder)
+            .setPlaceholder(`✦ ${genderPlaceholder}`)
             .addOptions(
-                { label: 'ʜᴇ/ʜɪᴍ', value: 'he_him' },
-                { label: toSmallCaps('SHE/HER (UNVERIFIED)'), value: 'she_her' },
-                { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ', value: 'they_them' }
+                { label: 'ʜᴇ/ʜɪᴍ', value: 'he_him', emoji: { id: '1487391271759646750' } },
+                { label: toSmallCaps('SHE/HER (UNVERIFIED)'), value: 'she_her', emoji: { id: '1487391271759646750' } },
+                { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ', value: 'they_them', emoji: { id: '1487391271759646750' } }
             );
 
         const row1 = new ActionRowBuilder().addComponents(ageMenu);
