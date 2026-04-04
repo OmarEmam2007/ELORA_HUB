@@ -118,13 +118,12 @@ module.exports = {
                 await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
             }
 
+            console.log(`[EVENT] guildMemberRemove triggered for ${member.user.tag}`);
             try {
-                const emoji = member.client.emojis.cache.get('1487391271759646750')?.toString() || '✦';
-                await member.send(
-                    `${emoji} **You stepped out of ELORA.**\n\n***We don't chase, we attract.***\n**See you when the other servers get boring.**\n\n**[ ✦ Return ](https://discord.gg/bNC2PCjpQZ)**`
-                );
-            } catch (_) {
-                return;
+                await member.send(`${member.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'} **You stepped out of ELORA.**\n\n***We don't chase, we attract.***\n**See you when the other servers get boring.**\n\n**[ ✦ Return ](https://discord.gg/bNC2PCjpQZ)**`);
+                console.log(`[SUCCESS] Farewell DM sent to ${member.user.tag}`);
+            } catch (error) {
+                console.log(`[FAILED] Could not send DM to ${member.user.tag}. They likely have DMs disabled.`);
             }
         } catch (error) {
             console.error('Error sending goodbye message:', error);
