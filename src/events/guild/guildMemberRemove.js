@@ -89,34 +89,43 @@ module.exports = {
             }
 
             const goodbyeChannelId = client.config.goodbyeChannelId;
-            if (!goodbyeChannelId) return; // No goodbye channel configured
+            const channel = goodbyeChannelId ? member.guild.channels.cache.get(goodbyeChannelId) : null;
 
-            const channel = member.guild.channels.cache.get(goodbyeChannelId);
-            if (!channel) {
+            if (goodbyeChannelId && !channel) {
                 console.error(`Goodbye channel ${goodbyeChannelId} not found.`);
-                return;
             }
 
-            const bannerName = '1234.png';
-            const bannerPath = path.join(__dirname, '../../assets', bannerName);
-            const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
+            if (channel) {
+                const bannerName = '1234.png';
+                const bannerPath = path.join(__dirname, '../../assets', bannerName);
+                const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
-            const header = '**' + toSmallCaps('GOODBYE') + '**';
-            const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);
-            const body = [
-                `**${toSmallCaps('USER')}:** ${member}`,
-                `**${toSmallCaps('MEMBER COUNT')}:** ${memberCount}`
-            ].join('\n');
+                const header = '**' + toSmallCaps('GOODBYE') + '**';
+                const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);
+                const body = [
+                    `**${toSmallCaps('USER')}:** ${member}`,
+                    `**${toSmallCaps('MEMBER COUNT')}:** ${memberCount}`
+                ].join('\n');
 
-            const embed = new EmbedBuilder()
-                .setColor(client?.config?.colors?.primary || 0x2b2d31)
-                .setTitle(header)
-                .setDescription(body)
-                .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-                .setImage(`attachment://${bannerName}`)
-                .setTimestamp();
+                const embed = new EmbedBuilder()
+                    .setColor(client?.config?.colors?.primary || 0x2b2d31)
+                    .setTitle(header)
+                    .setDescription(body)
+                    .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+                    .setImage(`attachment://${bannerName}`)
+                    .setTimestamp();
 
-            await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
+                await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
+            }
+
+            try {
+                const emoji = member.client.emojis.cache.get('1487391271759646750')?.toString() || '✦';
+                await member.send(
+                    `${emoji} **You stepped out of ELORA.**\n\n***We don't chase, we attract.***\n**See you when the other servers get boring.**\n\n**[ ✦ Return ](https://discord.gg/bNC2PCjpQZ)**`
+                );
+            } catch (_) {
+                return;
+            }
         } catch (error) {
             console.error('Error sending goodbye message:', error);
         }
