@@ -135,14 +135,13 @@ module.exports = {
                 `**${toSmallCaps('MEMBER COUNT')}:** ${guild.memberCount}`
             ].join('\n');
 
-            const embed = new EmbedBuilder()
-                .setColor(client?.config?.colors?.primary || 0x2b2d31)
-                .setTitle(header)
-                .setDescription(body)
-                .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-                .setImage(bannerFile ? `attachment://${bannerName}` : null);
+            const content = [header, body]
+                .join('\n')
+                .split('\n')
+                .map((line) => `> ${line}`)
+                .join('\n');
 
-            await channel.send({ embeds: [embed], files: bannerFile ? [bannerFile] : [] }).catch(() => { });
+            await channel.send({ content, files: bannerFile ? [bannerFile] : [] }).catch(() => { });
 
             // 8. Assign Nickname? (Requires permissions, risky if owner)
             // if (member.manageable) {
