@@ -16,7 +16,7 @@ module.exports = {
     async execute(interaction, client) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../ELORA NEW THEME/ticket.png'), { name: 'ticket.png' });
+        const banner = new AttachmentBuilder(path.join(__dirname, 'C:\Users\OMAR\Desktop\ELORA_HUB\ELORA NEW THEME\ticket.png'), { name: 'ticket.png' });
 
         const toSmallCaps = (input) => {
             const map = {
