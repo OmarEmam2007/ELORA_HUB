@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const path = require('path');
+const fs = require('fs');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -16,7 +17,18 @@ module.exports = {
     async execute(interaction) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
+        const bannerName = 'roles.png';
+        const bannerCandidates = [
+            path.join(__dirname, '../../assets', bannerName),
+            path.join(__dirname, '../../../assets', bannerName),
+            path.join(process.cwd(), 'assets', bannerName),
+            path.join(process.cwd(), 'src', 'assets', bannerName),
+            path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+        ];
+        const bannerPath = bannerCandidates.find(p => {
+            try { return fs.existsSync(p); } catch (_) { return false; }
+        }) || bannerCandidates[0];
+        const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
 
         const toSmallCaps = (input) => {
             const map = {

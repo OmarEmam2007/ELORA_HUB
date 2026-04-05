@@ -2,6 +2,7 @@ const User = require('../../models/User');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, ChannelType } = require('discord.js');
 const { getGuildLogChannel } = require('../../utils/getGuildLogChannel');
 const path = require('path');
+const fs = require('fs');
 const THEME = require('../../utils/theme');
 
 const deletingChannels = new Set();
@@ -120,11 +121,22 @@ module.exports = {
                         console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
 
                         try {
-                            const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
+                            const bannerName = 'panel.png';
+                            const bannerCandidates = [
+                                path.join(__dirname, '../../assets', bannerName),
+                                path.join(__dirname, '../../../assets', bannerName),
+                                path.join(process.cwd(), 'assets', bannerName),
+                                path.join(process.cwd(), 'src', 'assets', bannerName),
+                                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+                            ];
+                            const bannerPath = bannerCandidates.find(p => {
+                                try { return fs.existsSync(p); } catch (_) { return false; }
+                            }) || bannerCandidates[0];
+                            const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
                             const embed = new EmbedBuilder()
                                 .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
                                 .setDescription('**Temp Voice Control**')
-                                .setImage('attachment://1234.png');
+                                .setImage(`attachment://${bannerName}`);
 
                             const row1 = new ActionRowBuilder().addComponents(
                                 new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),

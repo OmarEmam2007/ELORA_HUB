@@ -68,15 +68,22 @@ module.exports = {
             // Generate unique confession ID
             const confessionId = `CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-            const jennieGifPath = path.join(__dirname, '../../../assets/jennie2.gif');
-            const jennieGifFallbackPath = path.join(__dirname, '../../assets/jennie2.gif');
+            const bannerName = 'bot_pfp_2.png';
+            const bannerCandidates = [
+                path.join(__dirname, '../../../assets', bannerName),
+                path.join(__dirname, '../../assets', bannerName),
+                path.join(process.cwd(), 'assets', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName),
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+            ];
+            const bannerPath = bannerCandidates.find(p => {
+                try { return fs.existsSync(p); } catch (_) { return false; }
+            }) || null;
             const files = [];
-            if (fs.existsSync(jennieGifPath)) {
-                files.push(new AttachmentBuilder(jennieGifPath, { name: 'jennie2.gif' }));
-            } else if (fs.existsSync(jennieGifFallbackPath)) {
-                files.push(new AttachmentBuilder(jennieGifFallbackPath, { name: 'jennie2.gif' }));
+            if (bannerPath) {
+                files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
             } else {
-                console.warn(`[CONFESS] Missing GIF file: ${jennieGifPath}`);
+                console.warn(`[CONFESS] Missing image file: ${bannerName}`);
             }
 
             // Create embed for the confession
@@ -90,7 +97,7 @@ module.exports = {
                 .setTimestamp();
 
             if (files.length) {
-                confessionEmbed.setImage('attachment://jennie2.gif');
+                confessionEmbed.setImage(`attachment://${bannerName}`);
             }
 
             // Send confession to the channel

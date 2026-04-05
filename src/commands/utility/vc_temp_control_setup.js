@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const path = require('path');
+const fs = require('fs');
 const THEME = require('../../utils/theme');
 
 const toSmallCaps = (input) => {
@@ -31,12 +32,23 @@ module.exports = {
     async execute(interaction, client) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const banner = new AttachmentBuilder(path.join(__dirname, '../../assets/1234.png'), { name: '1234.png' });
+        const bannerName = 'panel.png';
+        const bannerCandidates = [
+            path.join(__dirname, '../../assets', bannerName),
+            path.join(__dirname, '../../../assets', bannerName),
+            path.join(process.cwd(), 'assets', bannerName),
+            path.join(process.cwd(), 'src', 'assets', bannerName),
+            path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+        ];
+        const bannerPath = bannerCandidates.find(p => {
+            try { return fs.existsSync(p); } catch (_) { return false; }
+        }) || bannerCandidates[0];
+        const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
             .setDescription('**Temp Voice Control**')
-            .setImage('attachment://1234.png');
+            .setImage(`attachment://${bannerName}`);
 
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),

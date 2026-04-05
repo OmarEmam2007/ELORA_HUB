@@ -1,5 +1,6 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const path = require('path');
+const fs = require('fs');
 const InviteStats = require('../../models/InviteStats');
 const giveawayService = require('../../services/giveawayService');
 
@@ -113,8 +114,22 @@ module.exports = {
                 // ignore
             }
 
-            const bannerName = '1234.png';
-            const bannerPath = path.join(__dirname, '../../assets', bannerName);
+            const bannerName = 'welcome.png';
+            const bannerCandidates = [
+                path.join(__dirname, '../../assets', bannerName),
+                path.join(__dirname, '../../../assets', bannerName),
+                path.join(process.cwd(), 'assets', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName),
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+            ];
+
+            const bannerPath = bannerCandidates.find((p) => {
+                try {
+                    return fs.existsSync(p);
+                } catch (_) {
+                    return false;
+                }
+            }) || bannerCandidates[0];
             const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 
             const header = '**' + toSmallCaps('WELCOME TO ELORA') + '**';

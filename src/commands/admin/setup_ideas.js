@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const {
     SlashCommandBuilder,
     PermissionFlagsBits,
@@ -22,8 +23,18 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true }).catch(() => { });
 
-        const imagePath = path.join(__dirname, '../../assets/1234.png');
-        const file = new AttachmentBuilder(imagePath, { name: '1234.png' });
+        const bannerName = 'improve.png';
+        const bannerCandidates = [
+            path.join(__dirname, '../../assets', bannerName),
+            path.join(__dirname, '../../../assets', bannerName),
+            path.join(process.cwd(), 'assets', bannerName),
+            path.join(process.cwd(), 'src', 'assets', bannerName),
+            path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+        ];
+        const imagePath = bannerCandidates.find(p => {
+            try { return fs.existsSync(p); } catch (_) { return false; }
+        }) || bannerCandidates[0];
+        const file = new AttachmentBuilder(imagePath, { name: bannerName });
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('ideas_select')
