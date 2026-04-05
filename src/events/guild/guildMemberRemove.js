@@ -97,18 +97,18 @@ module.exports = {
             }
 
             if (channel) {
-                const bannerName = 'bye.png';
+                const bannerName = client?.config?.goodbyeBanner || 'bye.png';
                 const bannerCandidates = [
+                    path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
                     path.join(__dirname, '../../assets', bannerName),
                     path.join(__dirname, '../../../assets', bannerName),
                     path.join(process.cwd(), 'assets', bannerName),
-                    path.join(process.cwd(), 'src', 'assets', bannerName),
-                    path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+                    path.join(process.cwd(), 'src', 'assets', bannerName)
                 ];
                 const bannerPath = bannerCandidates.find(p => {
                     try { return fs.existsSync(p); } catch (_) { return false; }
-                }) || bannerCandidates[0];
-                const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
+                }) || null;
+                const bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
 
                 const header = "**We don't chase, we attract**";
                 const memberCount = Math.max(0, (member.guild.memberCount || 0) - 1);
@@ -122,10 +122,10 @@ module.exports = {
                     .setTitle(header)
                     .setDescription(body)
                     .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-                    .setImage(`attachment://${bannerName}`)
+                    .setImage(bannerFile ? `attachment://${bannerName}` : null)
                     .setTimestamp();
 
-                await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
+                await channel.send({ embeds: [embed], files: bannerFile ? [bannerFile] : [] }).catch(() => { });
             }
 
             console.log(`[EVENT] guildMemberRemove triggered for ${member.user.tag}`);

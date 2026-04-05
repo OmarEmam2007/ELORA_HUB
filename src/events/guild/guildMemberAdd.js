@@ -114,13 +114,13 @@ module.exports = {
                 // ignore
             }
 
-            const bannerName = 'welcome.png';
+            const bannerName = client?.config?.welcomeBanner || 'welcome.png';
             const bannerCandidates = [
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
                 path.join(__dirname, '../../assets', bannerName),
                 path.join(__dirname, '../../../assets', bannerName),
                 path.join(process.cwd(), 'assets', bannerName),
-                path.join(process.cwd(), 'src', 'assets', bannerName),
-                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+                path.join(process.cwd(), 'src', 'assets', bannerName)
             ];
 
             const bannerPath = bannerCandidates.find((p) => {
@@ -129,8 +129,8 @@ module.exports = {
                 } catch (_) {
                     return false;
                 }
-            }) || bannerCandidates[0];
-            const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
+            }) || null;
+            const bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
 
             const header = '**' + toSmallCaps('WELCOME TO ELORA') + '**';
             const body = [
@@ -144,9 +144,9 @@ module.exports = {
                 .setTitle(header)
                 .setDescription(body)
                 .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-                .setImage(`attachment://${bannerName}`);
+                .setImage(bannerFile ? `attachment://${bannerName}` : null);
 
-            await channel.send({ embeds: [embed], files: [bannerFile] }).catch(() => { });
+            await channel.send({ embeds: [embed], files: bannerFile ? [bannerFile] : [] }).catch(() => { });
 
             // 8. Assign Nickname? (Requires permissions, risky if owner)
             // if (member.manageable) {
