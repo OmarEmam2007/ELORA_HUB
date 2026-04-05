@@ -97,13 +97,9 @@ module.exports = {
             }
 
             if (channel) {
-                const bannerName = client?.config?.goodbyeBanner || 'bye.png';
+                const bannerName = 'bye.png';
                 const bannerCandidates = [
-                    path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
-                    path.join(__dirname, '../../assets', bannerName),
-                    path.join(__dirname, '../../../assets', bannerName),
-                    path.join(process.cwd(), 'assets', bannerName),
-                    path.join(process.cwd(), 'src', 'assets', bannerName)
+                    path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
                 ];
                 const bannerPath = bannerCandidates.find(p => {
                     try { return fs.existsSync(p); } catch (_) { return false; }

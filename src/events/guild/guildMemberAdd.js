@@ -114,13 +114,9 @@ module.exports = {
                 // ignore
             }
 
-            const bannerName = client?.config?.welcomeBanner || 'welcome.png';
+            const bannerName = 'welcome.png';
             const bannerCandidates = [
-                path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
-                path.join(__dirname, '../../assets', bannerName),
-                path.join(__dirname, '../../../assets', bannerName),
-                path.join(process.cwd(), 'assets', bannerName),
-                path.join(process.cwd(), 'src', 'assets', bannerName)
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
             ];
 
             const bannerPath = bannerCandidates.find((p) => {
