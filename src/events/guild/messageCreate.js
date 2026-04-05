@@ -44,6 +44,37 @@ module.exports = {
     async execute(message, client) {
         if (message.author.bot || message.webhookId || !message.guild) return;
 
+        // --- Auto-delete Discord invites (except in ticket channels/threads) ---
+        try {
+            const TICKET_PARENT_CHANNEL_ID = '1461997428218794099';
+            const TICKET_CATEGORY_ID = '1461484271142174790';
+
+            const isTicketLocation = (() => {
+                const ch = message.channel;
+                if (!ch) return false;
+                if (typeof ch.isThread === 'function' && ch.isThread()) {
+                    return ch.parentId === TICKET_PARENT_CHANNEL_ID;
+                }
+                if (ch.parentId && ch.parentId === TICKET_CATEGORY_ID) return true;
+                if (typeof ch.name === 'string' && /^ticket-/.test(ch.name)) return true;
+                if (typeof ch.topic === 'string' && ch.topic.toLowerCase().includes('ticket:')) return true;
+                return false;
+            })();
+
+            if (!isTicketLocation) {
+                const content = String(message.content || '');
+                const inviteRegex = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/[a-z0-9-]+/i;
+                if (inviteRegex.test(content)) {
+                    if (message.deletable) {
+                        await message.delete().catch(() => { });
+                    }
+                    return;
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
+
         // --- Prefix Avatar Command (.av) ---
         try {
             const text = String(message.content || '').trim();
