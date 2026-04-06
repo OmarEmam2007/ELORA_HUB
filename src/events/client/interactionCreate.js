@@ -1809,7 +1809,9 @@ module.exports = {
             if (!interaction.guild) return safeReply({ content: '❌ Invalid guild.' });
 
             const allowed = new Set(['1085496418745200730', '629373738772594728']);
-            if (!allowed.has(interaction.user.id) && !interaction.member?.permissions?.has?.(PermissionFlagsBits.Administrator)) {
+            const partnershipReviewerRoleId = '1484963266177531986';
+            const hasReviewerRole = Boolean(interaction.member?.roles?.cache?.has?.(partnershipReviewerRoleId));
+            if (!allowed.has(interaction.user.id) && !hasReviewerRole && !interaction.member?.permissions?.has?.(PermissionFlagsBits.Administrator)) {
                 return safeReply({ content: '❌ Admin only.' });
             }
 
