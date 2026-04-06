@@ -46,8 +46,14 @@ module.exports = {
 
         // --- Auto-delete Discord invites (except in ticket channels/threads) ---
         try {
+            const PARTNERS_CHANNEL_ID = '1475546263977066606';
             const TICKET_PARENT_CHANNEL_ID = '1461997428218794099';
             const TICKET_CATEGORY_ID = '1461484271142174790';
+
+            if (message.channelId === PARTNERS_CHANNEL_ID) {
+                // partners channel: allow invite links
+                return;
+            }
 
             const isTicketLocation = (() => {
                 const ch = message.channel;
