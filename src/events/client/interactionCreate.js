@@ -2418,6 +2418,7 @@ module.exports = {
 
             if (value === 'partnerships') {
                 const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+                const whitesEmoji = interaction.client.emojis.cache.find((e) => e?.name === '761412whites')?.toString() || '▫️';
 
                 await created.send({
                     content: `<@${interaction.user.id}> ${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`,
