@@ -1790,8 +1790,13 @@ module.exports = {
             }).catch(() => { });
 
             await interaction.channel.send({
-                content: `<@${state.userId}> ${botMsg} **Advertisement to post:**\n\n⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                  ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1470116485627379806/1486006454367424574/sdfag.png)   ||@everyone|| ||@here ||`,
-                allowedMentions: { parse: ['users'] }
+                content: `:761412whites: Advertisement to post:`,
+                allowedMentions: { parse: [] }
+            }).catch(() => { });
+
+            await interaction.channel.send({
+                content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                   ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1479971970966622452/1490332285071786044/elora.png?ex=69d3ab99&is=69d25a19&hm=c18e4685b1346d5e321d1de7c51ca724d2364cdcf17d64e1b9d1acd35104ee3e&=&format=webp&quality=lossless&width=1860&height=759)   ||@everyone|| ||@here ||` ,
+                allowedMentions: { parse: [] }
             }).catch(() => { });
 
             const row = new ActionRowBuilder().addComponents(
