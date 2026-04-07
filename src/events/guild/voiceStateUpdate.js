@@ -1,8 +1,6 @@
 const User = require('../../models/User');
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, ChannelType } = require('discord.js');
+const { EmbedBuilder, ChannelType } = require('discord.js');
 const { getGuildLogChannel } = require('../../utils/getGuildLogChannel');
-const path = require('path');
-const fs = require('fs');
 const THEME = require('../../utils/theme');
 
 const deletingChannels = new Set();
@@ -121,54 +119,17 @@ module.exports = {
                         console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
 
                         try {
-                            const bannerName = 'panel.png';
-                            const bannerCandidates = [
-                                path.join(__dirname, '../../assets', bannerName),
-                                path.join(__dirname, '../../../assets', bannerName),
-                                path.join(process.cwd(), 'assets', bannerName),
-                                path.join(process.cwd(), 'src', 'assets', bannerName),
-                                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
-                            ];
-                            const bannerPath = bannerCandidates.find(p => {
-                                try { return fs.existsSync(p); } catch (_) { return false; }
-                            }) || bannerCandidates[0];
-                            const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
+                            const CONTROL_PANEL_CHANNEL_ID = '1480944040517304371';
                             const embed = new EmbedBuilder()
                                 .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-                                .setDescription('**Temp Voice Control**')
-                                .setImage(`attachment://${bannerName}`);
-
-                            const row1 = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Lock'),
-                                new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unlock'),
-                                new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Hide'),
-                                new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unhide'),
-                                new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Bitrate')
-                            );
-
-                            const row2 = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Transfer Owner'),
-                                new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('User Limit'),
-                                new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Rename'),
-                                new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Me'),
-                                new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Move Member')
-                            );
-
-                            const row3 = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Mute Member'),
-                                new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Unmute Member'),
-                                new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Deafen Member'),
-                                new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('Undeafen Member'),
-                                new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('▫️').setLabel('Kick Member')
-                            );
+                                .setDescription(`**Temp Voice is ready**\nUse the control panel in <#${CONTROL_PANEL_CHANNEL_ID}> to manage your channel.`)
+                                .setFooter({ text: `✦ Control Panel: #${CONTROL_PANEL_CHANNEL_ID}` });
 
                             if (typeof created.send === 'function') {
                                 await created.send({
                                     content: `<@${member.id}>`,
                                     allowedMentions: { users: [member.id] },
-                                    files: [banner],
-                                    embeds: [embed],
-                                    components: [row1, row2, row3]
+                                    embeds: [embed]
                                 }).catch(() => { });
                             }
                         } catch (_) {
