@@ -123,7 +123,7 @@ module.exports = {
                             const embed = new EmbedBuilder()
                                 .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
                                 .setDescription(`**Temp Voice is ready**\nUse the control panel in <#${CONTROL_PANEL_CHANNEL_ID}> to manage your channel.`)
-                                .setFooter({ text: `✦ Control Panel: #${CONTROL_PANEL_CHANNEL_ID}` });
+                                .setFooter({ text: '-ˋˏ✄┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈' });
 
                             if (typeof created.send === 'function') {
                                 await created.send({
