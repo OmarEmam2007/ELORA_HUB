@@ -18,6 +18,7 @@ const partnershipTicketState = new Map();
 const partnershipAdminRequests = new Map();
 const girlsVerificationRequests = new Map();
 const girlsVerificationAdminIndex = new Map();
+const ticketLanguageByChannel = new Map();
 
 const TVCP = {
     PREFIX: 'tvcp_',
@@ -253,6 +254,42 @@ module.exports = {
             return match?.[1] || null;
         };
 
+        const getTicketTypeFromTopic = (topic) => {
+            const t = String(topic || '');
+            const match = t.match(/Ticket:\s*([a-z0-9_\-]+)\b/i);
+            return match?.[1] || null;
+        };
+
+        const boldArabic = (text) => {
+            const t = String(text || '').trim();
+            if (!t) return t;
+            return `**${t.replace(/\*\*/g, '*\\*')}**`;
+        };
+
+        const buildTicketLanguagePicker = ({ ticketType }) => {
+            const embed = new EmbedBuilder()
+                .setColor(THEME?.COLORS?.ACCENT || 0x9b5cff)
+                .setTitle('✦  Language / اللغة')
+                .setDescription(
+                    `**English:** Select a language to continue this ticket.\n` +
+                    `${boldArabic('اختر اللغة التي ترغب أن يتابع بها البوت هذه التذكرة.')}`
+                )
+                .setFooter(THEME?.FOOTER || null);
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`ticket_lang_en_${ticketType}`)
+                    .setLabel('English')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId(`ticket_lang_ar_${ticketType}`)
+                    .setLabel('العربية')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            return { embed, row };
+        };
+
         const safeDeleteTicketChannel = async (guild, channelId, reason) => {
             if (!guild || !channelId) return;
             if (deletingTicketChannels.has(channelId)) return;
@@ -332,8 +369,11 @@ module.exports = {
 
                 try { await m.delete().catch(() => { }); } catch (_) { }
 
+                const lang = ticketLanguageByChannel.get(ticketChannel.id) || 'en';
                 const ack = await ticketChannel.send({
-                    content: `<@${userId}> ✔ **Voice note secured and sent to staff.**`,
+                    content: lang === 'ar'
+                        ? `<@${userId}> ${boldArabic('تم حفظ الملاحظة الصوتية وإرسالها إلى فريق الإدارة.')}`
+                        : `<@${userId}> ✔ **Voice note secured and sent to staff.**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => null);
                 if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
@@ -359,6 +399,190 @@ module.exports = {
 
             collector.on('end', () => { });
         };
+
+        const startPartnershipCollector = async ({ ticketChannel, userId }) => {
+            if (!ticketChannel?.isTextBased?.()) return;
+            const lang = ticketLanguageByChannel.get(ticketChannel.id) || 'en';
+            const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+
+            await ticketChannel.send({
+                content: lang === 'ar'
+                    ? `<@${userId}> ${botMsg} ${boldArabic('مرحبًا! يُرجى إرسال إعلان سيرفرك ورابط الدعوة في رسالة واحدة أدناه.')}`
+                    : `<@${userId}> ${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`,
+                allowedMentions: { parse: ['users'] }
+            }).catch(() => { });
+
+            const inviteRegex = /(https?:\/\/)?(www\.)?(discord\.gg\/[\w-]+|discord\.com\/invite\/[\w-]+)/i;
+
+            const collector = ticketChannel.createMessageCollector({
+                filter: (m) => m.author?.id === userId,
+                time: 20 * 60 * 1000
+            });
+
+            collector.on('collect', async (m) => {
+                const content = String(m.content || '');
+                const match = content.match(inviteRegex);
+
+                if (!match?.[0]) {
+                    await ticketChannel.send({
+                        content: lang === 'ar'
+                            ? `<@${userId}> ${botMsg} ${boldArabic('لم نعثر على رابط دعوة صالح. يُرجى إعادة إرسال الإعلان مع رابط دعوة يعمل بشكل صحيح.')}`
+                            : `<@${userId}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
+                        allowedMentions: { parse: ['users'] }
+                    }).catch(() => { });
+                    return;
+                }
+
+                const rawLink = match[0].startsWith('http') ? match[0] : `https://${match[0]}`;
+                const invite = await client.fetchInvite(rawLink).catch(() => null);
+                const memberCount = invite?.memberCount ?? invite?.approximateMemberCount;
+
+                if (!invite || typeof memberCount !== 'number') {
+                    await ticketChannel.send({
+                        content: lang === 'ar'
+                            ? `<@${userId}> ${botMsg} ${boldArabic('لم نعثر على رابط دعوة صالح. يُرجى إعادة إرسال الإعلان مع رابط دعوة يعمل بشكل صحيح.')}`
+                            : `<@${userId}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
+                        allowedMentions: { parse: ['users'] }
+                    }).catch(() => { });
+                    return;
+                }
+
+                if (Number(memberCount) < 400) {
+                    partnershipTicketState.set(ticketChannel.id, {
+                        userId,
+                        adText: content,
+                        memberCount: Number(memberCount),
+                        stripPings: null
+                    });
+
+                    try { collector.stop('await_proceed'); } catch (_) { }
+
+                    const proceedRow = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId('partner_proceed_yes').setLabel(lang === 'ar' ? 'نعم' : 'Yes').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId('partner_proceed_no').setLabel(lang === 'ar' ? 'لا' : 'No').setStyle(ButtonStyle.Danger)
+                    );
+
+                    await ticketChannel.send({
+                        content: lang === 'ar'
+                            ? `<@${userId}> ${botMsg} ${boldArabic('تنبيه: لا نسمح بعمل منشن @everyone أو @here للسيرفرات التي يقل عدد أعضائها عن 400. إن وُجدت المنشنات داخل الإعلان فسيتم حذفها تلقائيًا. هل ترغب في المتابعة؟')}`
+                            : `<@${userId}> ${botMsg} **Attention: We do not allow @everyone or @here pings for servers with less than 400 members. If included, they will be automatically removed from your advertisement. Do you still wish to proceed?**`,
+                        allowedMentions: { parse: ['users'] },
+                        components: [proceedRow]
+                    }).catch(() => { });
+                    return;
+                }
+
+                partnershipTicketState.set(ticketChannel.id, {
+                    userId,
+                    adText: content,
+                    memberCount: Number(memberCount),
+                    stripPings: false
+                });
+
+                try { collector.stop('ok'); } catch (_) { }
+
+                const whitesEmoji = interaction.client.emojis.cache.find((e) => e?.name === '761412whites')?.toString() || '▫️';
+
+                await ticketChannel.send({
+                    content: lang === 'ar'
+                        ? `<@${userId}> ${botMsg} ${boldArabic('ممتاز! الآن انشر إعلاننا في سيرفرك، ثم ارفع لقطة شاشة هنا، وبعدها اضغط زر [Verify ✦].')}`
+                        : `<@${userId}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
+
+                await ticketChannel.send({
+                    content: lang === 'ar'
+                        ? `${whitesEmoji} ${boldArabic('الإعلان المراد نشره:')}`
+                        : `${whitesEmoji} Advertisement to post:`,
+                    allowedMentions: { parse: [] }
+                }).catch(() => { });
+
+                await ticketChannel.send({
+                    content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                   ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎 𝐑 𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1479971970966622452/1490332285071786044/elora.png?ex=69d3ab99&is=69d25a19&hm=c18e4685b1346d5e321d1de7c51ca724d2364cdcf17d64e1b9d1acd35104ee3e&=&format=webp&quality=lossless&width=1860&height=759)   ||@everyone|| ||@here ||` ,
+                    allowedMentions: { parse: [] }
+                }).catch(() => { });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('partner_verify')
+                        .setLabel(lang === 'ar' ? 'تحقق ✦' : 'Verify ✦')
+                        .setStyle(ButtonStyle.Primary)
+                );
+
+                await ticketChannel.send({ components: [row] }).catch(() => { });
+            });
+
+            collector.on('end', () => { });
+        };
+
+        if (interaction.isButton?.() && (String(interaction.customId || '').startsWith('ticket_lang_en_') || String(interaction.customId || '').startsWith('ticket_lang_ar_'))) {
+            if (!interaction.guild || !interaction.channel) {
+                return safeReply({ content: '✖ **Invalid channel.**', ephemeral: true });
+            }
+
+            const parts = String(interaction.customId).split('_');
+            const lang = parts[2] === 'ar' ? 'ar' : 'en';
+            const ticketType = parts.slice(3).join('_');
+
+            const openerId = parseTicketOwnerFromTopic(interaction.channel?.topic);
+            if (openerId && interaction.user.id !== openerId) {
+                return safeReply({ content: '✖ **Only the ticket owner can choose the language.**', ephemeral: true });
+            }
+
+            const topicType = getTicketTypeFromTopic(interaction.channel?.topic);
+            if (topicType && ticketType && topicType !== ticketType) {
+                return safeReply({ content: '✖ **Invalid ticket context.**', ephemeral: true });
+            }
+
+            ticketLanguageByChannel.set(interaction.channelId, lang);
+            await interaction.deferUpdate().catch(() => { });
+
+            const disabled = (interaction.message?.components || []).map((row) => {
+                try {
+                    const r = ActionRowBuilder.from(row);
+                    r.components = r.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
+                    return r;
+                } catch (_) {
+                    return row;
+                }
+            });
+            await interaction.message?.edit({ components: disabled }).catch(() => { });
+
+            const ack = await interaction.channel.send({
+                content: lang === 'ar' ? boldArabic('تم اختيار اللغة.') : '**Language selected.**'
+            }).catch(() => null);
+            if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 2500);
+
+            if (ticketType === 'girls_verification') {
+                const adminVaultId = '1489682035642601584';
+                const state = girlsVerificationRequests.get(interaction.channelId) || {};
+                const code = String(state.code || '').trim() || genGirlsCode();
+                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                const dn = `${member?.displayName || interaction.user.displayName || interaction.user.username}`;
+                const emoji = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+
+                if (!state.code) {
+                    girlsVerificationRequests.set(interaction.channelId, { ...state, userId: interaction.user.id, code, awaiting: 'voice' });
+                }
+
+                await interaction.channel.send({
+                    content: lang === 'ar'
+                        ? `<@${interaction.user.id}> ${emoji} ${boldArabic('مرحبًا! لتوثيق هويتك، يُرجى إرسال ملاحظة صوتية فقط تقولين فيها بالنص:')}\n${boldArabic(`\"أنا ${dn} ورمز التوثيق الخاص بي هو ${code}\".`)}\n${boldArabic('(سيتم إخفاء الملاحظة الصوتية فورًا حفاظًا على خصوصيتك.)')}`
+                        : `<@${interaction.user.id}> ${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${dn} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`,
+                    allowedMentions: { parse: ['users'] }
+                }).catch(() => { });
+
+                await startGirlsVoiceCollector({ ticketChannel: interaction.channel, userId: interaction.user.id, adminVaultId, code });
+                return;
+            }
+
+            if (ticketType === 'partnerships') {
+                await startPartnershipCollector({ ticketChannel: interaction.channel, userId: interaction.user.id });
+                return;
+            }
+
+            return;
+        }
 
         if (!client.whisperSecrets) client.whisperSecrets = new Map();
 
@@ -2021,11 +2245,14 @@ module.exports = {
 
             const state = girlsVerificationRequests.get(ticketChannel.id) || {};
             const currentCode = String(state.code || '').trim() || 'N/A';
+            const lang = ticketLanguageByChannel.get(ticketChannel.id) || 'en';
 
             if (interaction.customId === 'girls_verify_ask_pic') {
                 const emoji = getDynEmoji();
                 await ticketChannel.send({
-                    content: `<@${openerId}> ${emoji} **For extra security, our staff requested a picture to confirm your identity. Please send a photo here (it will be deleted instantly for your privacy).**`,
+                    content: lang === 'ar'
+                        ? `<@${openerId}> ${emoji} ${boldArabic('لمزيد من الأمان، طلب فريق الإدارة صورة لتأكيد الهوية. يُرجى إرسال صورة هنا (وسيتم حذفها فورًا حفاظًا على خصوصيتك).')}`
+                        : `<@${openerId}> ${emoji} **For extra security, our staff requested a picture to confirm your identity. Please send a photo here (it will be deleted instantly for your privacy).**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
@@ -2048,7 +2275,9 @@ module.exports = {
                     try { await m.delete().catch(() => { }); } catch (_) { }
 
                     const ack = await ticketChannel.send({
-                        content: `<@${openerId}> ✔ **Photo secured.**`,
+                        content: lang === 'ar'
+                            ? `<@${openerId}> ${boldArabic('تم حفظ الصورة.')}`
+                            : `<@${openerId}> ✔ **Photo secured.**`,
                         allowedMentions: { parse: ['users'] }
                     }).catch(() => null);
                     if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
@@ -2076,7 +2305,9 @@ module.exports = {
                 girlsVerificationRequests.set(ticketChannel.id, { ...state, code: newCode, awaiting: 'voice' });
 
                 await ticketChannel.send({
-                    content: `<@${openerId}> ✖ **Staff requested a retake. Please send a new voice note with the NEW code: ${newCode}**`,
+                    content: lang === 'ar'
+                        ? `<@${openerId}> ${boldArabic(`طلب فريق الإدارة إعادة التسجيل. يُرجى إرسال ملاحظة صوتية جديدة بالرمز الجديد: ${newCode}`)}`
+                        : `<@${openerId}> ✖ **Staff requested a retake. Please send a new voice note with the NEW code: ${newCode}**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
@@ -2088,14 +2319,20 @@ module.exports = {
                 const userObj = await client.users.fetch(openerId).catch(() => null);
                 if (userObj) {
                     try {
-                        await userObj.send({ content: '✖ **Sorry, your verification request in ELORA was declined.**' });
+                        await userObj.send({
+                            content: lang === 'ar'
+                                ? boldArabic('نأسف، لقد تم رفض طلب التوثيق الخاص بك في ELORA.')
+                                : '✖ **Sorry, your verification request in ELORA was declined.**'
+                        });
                     } catch (_) {
                         // ignore
                     }
                 }
 
                 await ticketChannel.send({
-                    content: `<@${openerId}> ✖ **Verification declined. Closing ticket...**`,
+                    content: lang === 'ar'
+                        ? `<@${openerId}> ${boldArabic('تم رفض التوثيق. سيتم إغلاق التذكرة الآن...')}`
+                        : `<@${openerId}> ✖ **Verification declined. Closing ticket...**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
                 await new Promise((r) => setTimeout(r, 5000));
@@ -2118,7 +2355,7 @@ module.exports = {
                     try {
                         const ratingMenu = new StringSelectMenuBuilder()
                             .setCustomId('girls_rating_menu')
-                            .setPlaceholder('✦ Rate your experience')
+                            .setPlaceholder(lang === 'ar' ? '✦ قيّمي تجربتك' : '✦ Rate your experience')
                             .addOptions(
                                 { label: '1 Star ⭐', value: '1 ⭐', emoji: { id: '1487391271759646750' } },
                                 { label: '2 Stars ⭐⭐', value: '2 ⭐⭐', emoji: { id: '1487391271759646750' } },
@@ -2129,11 +2366,13 @@ module.exports = {
 
                         const ratingRow = new ActionRowBuilder().addComponents(ratingMenu);
                         const feedbackRow = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId('girls_feedback_btn').setLabel('Leave Feedback').setStyle(ButtonStyle.Secondary)
+                            new ButtonBuilder().setCustomId('girls_feedback_btn').setLabel(lang === 'ar' ? 'اتركي ملاحظاتك' : 'Leave Feedback').setStyle(ButtonStyle.Secondary)
                         );
 
                         await userObj.send({
-                            content: '✔ **Congratulations! Your verification in ELORA was successful. Welcome to the family! We would appreciate it if you could rate your experience below.**',
+                            content: lang === 'ar'
+                                ? boldArabic('تهانينا! تم توثيقك في ELORA بنجاح. أهلًا بكِ في العائلة! سنقدّر تقييمك للتجربة أدناه.')
+                                : '✔ **Congratulations! Your verification in ELORA was successful. Welcome to the family! We would appreciate it if you could rate your experience below.**',
                             components: [ratingRow, feedbackRow]
                         });
                     } catch (_) {
@@ -2142,7 +2381,9 @@ module.exports = {
                 }
 
                 await ticketChannel.send({
-                    content: `<@${openerId}> ✔ **Verification successful. Closing ticket...**`,
+                    content: lang === 'ar'
+                        ? `<@${openerId}> ${boldArabic('تم التوثيق بنجاح. سيتم إغلاق التذكرة الآن...')}`
+                        : `<@${openerId}> ✔ **Verification successful. Closing ticket...**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
                 await new Promise((r) => setTimeout(r, 5000));
@@ -2395,13 +2636,6 @@ module.exports = {
             if (value === 'girls_verification') {
                 const adminVaultId = '1489682035642601584';
                 const code = genGirlsCode();
-                const emoji = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
-                const dn = `${interaction.member?.displayName || interaction.user.displayName}`;
-
-                await created.send({
-                    content: `<@${interaction.user.id}> ${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${dn} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`,
-                    allowedMentions: { parse: ['users'] }
-                }).catch(() => { });
 
                 girlsVerificationRequests.set(created.id, {
                     userId: interaction.user.id,
@@ -2412,107 +2646,14 @@ module.exports = {
                     awaiting: 'voice'
                 });
 
-                await startGirlsVoiceCollector({ ticketChannel: created, userId: interaction.user.id, adminVaultId, code });
+                const picker = buildTicketLanguagePicker({ ticketType: 'girls_verification' });
+                await created.send({ embeds: [picker.embed], components: [picker.row] }).catch(() => { });
                 return;
             }
 
             if (value === 'partnerships') {
-                const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
-                const whitesEmoji = interaction.client.emojis.cache.find((e) => e?.name === '761412whites')?.toString() || '▫️';
-
-                await created.send({
-                    content: `<@${interaction.user.id}> ${botMsg} **Welcome ${interaction.user}! Please provide your server's advertisement and invite link in ONE single message below.**`,
-                    allowedMentions: { parse: ['users'] }
-                }).catch(() => { });
-
-                const inviteRegex = /(https?:\/\/)?(www\.)?(discord\.gg\/[\w-]+|discord\.com\/invite\/[\w-]+)/i;
-
-                const collector = created.createMessageCollector({
-                    filter: (m) => m.author?.id === interaction.user.id,
-                    time: 20 * 60 * 1000
-                });
-
-                collector.on('collect', async (m) => {
-                    const content = String(m.content || '');
-                    const match = content.match(inviteRegex);
-                    if (!match?.[0]) {
-                        await created.send({
-                            content: `<@${interaction.user.id}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
-                            allowedMentions: { parse: ['users'] }
-                        }).catch(() => { });
-                        return;
-                    }
-
-                    const rawLink = match[0].startsWith('http') ? match[0] : `https://${match[0]}`;
-                    const invite = await client.fetchInvite(rawLink).catch(() => null);
-                    const memberCount = invite?.memberCount ?? invite?.approximateMemberCount;
-
-                    if (!invite || typeof memberCount !== 'number') {
-                        await created.send({
-                            content: `<@${interaction.user.id}> ${botMsg} **We couldn't find a valid invite link. Please resend your advertisement with a working Discord invite.**`,
-                            allowedMentions: { parse: ['users'] }
-                        }).catch(() => { });
-                        return;
-                    }
-
-                    if (Number(memberCount) < 400) {
-                        partnershipTicketState.set(created.id, {
-                            userId: interaction.user.id,
-                            adText: content,
-                            memberCount: Number(memberCount),
-                            stripPings: null
-                        });
-
-                        try { collector.stop('await_proceed'); } catch (_) { }
-
-                        const proceedRow = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId('partner_proceed_yes').setLabel('Yes').setStyle(ButtonStyle.Success),
-                            new ButtonBuilder().setCustomId('partner_proceed_no').setLabel('No').setStyle(ButtonStyle.Danger)
-                        );
-
-                        await created.send({
-                            content: `<@${interaction.user.id}> ${botMsg} **Attention: We do not allow @everyone or @here pings for servers with less than 400 members. If included, they will be automatically removed from your advertisement. Do you still wish to proceed?**`,
-                            allowedMentions: { parse: ['users'] },
-                            components: [proceedRow]
-                        }).catch(() => { });
-                        return;
-                    }
-
-                    partnershipTicketState.set(created.id, {
-                        userId: interaction.user.id,
-                        adText: content,
-                        memberCount: Number(memberCount),
-                        stripPings: false
-                    });
-
-                    try { collector.stop('ok'); } catch (_) { }
-
-                    await created.send({
-                        content: `<@${interaction.user.id}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
-                        allowedMentions: { parse: ['users'] }
-                    }).catch(() => { });
-
-                    await created.send({
-                        content: `${whitesEmoji} Advertisement to post:`,
-                        allowedMentions: { parse: [] }
-                    }).catch(() => { });
-
-                    await created.send({
-                        content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                   ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎 𝐑 𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1479971970966622452/1490332285071786044/elora.png?ex=69d3ab99&is=69d25a19&hm=c18e4685b1346d5e321d1de7c51ca724d2364cdcf17d64e1b9d1acd35104ee3e&=&format=webp&quality=lossless&width=1860&height=759)   ||@everyone|| ||@here ||` ,
-                        allowedMentions: { parse: [] }
-                    }).catch(() => { });
-
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('partner_verify')
-                            .setLabel('Verify ✦')
-                            .setStyle(ButtonStyle.Primary)
-                    );
-
-                    await created.send({ components: [row] }).catch(() => { });
-                });
-
-                collector.on('end', () => { });
+                const picker = buildTicketLanguagePicker({ ticketType: 'partnerships' });
+                await created.send({ embeds: [picker.embed], components: [picker.row] }).catch(() => { });
                 return;
             }
 
