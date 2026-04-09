@@ -1867,15 +1867,21 @@ module.exports = {
 
             const state = partnershipTicketState.get(interaction.channelId);
             if (!state || !state.userId || !state.adText) {
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 return safeReply({
-                    content: `<@${interaction.user.id}> ✖ **This partnership ticket is not ready for verification yet.**`,
+                    content: lang === 'ar'
+                        ? `<@${interaction.user.id}> ✖ ${boldArabic('هذه التذكرة غير جاهزة للتحقق بعد.')}`
+                        : `<@${interaction.user.id}> ✖ **This partnership ticket is not ready for verification yet.**`,
                     allowedMentions: { parse: ['users'] }
                 });
             }
 
             if (interaction.user.id !== state.userId) {
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 return safeReply({
-                    content: `<@${interaction.user.id}> ✖ **Only the ticket owner can verify.**`,
+                    content: lang === 'ar'
+                        ? `<@${interaction.user.id}> ✖ ${boldArabic('مالك التذكرة فقط يمكنه التحقق.')}`
+                        : `<@${interaction.user.id}> ✖ **Only the ticket owner can verify.**`,
                     allowedMentions: { parse: ['users'] }
                 });
             }
@@ -1891,9 +1897,12 @@ module.exports = {
 
             if (!found) {
                 const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 await interaction.deferUpdate().catch(() => { });
                 const warn = await interaction.channel.send({
-                    content: `<@${state.userId}> ${botMsg} **Please upload the screenshot first before clicking verify.**`,
+                    content: lang === 'ar'
+                        ? `<@${state.userId}> ${botMsg} ${boldArabic('يُرجى رفع لقطة الشاشة أولًا قبل الضغط على زر التحقق.')}`
+                        : `<@${state.userId}> ${botMsg} **Please upload the screenshot first before clicking verify.**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => null);
                 if (warn?.deletable) {
@@ -1929,8 +1938,11 @@ module.exports = {
 
             const sent = await adminChannel.send({ embeds: [embed], components: [row] }).catch(() => null);
             if (!sent) {
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 await interaction.channel.send({
-                    content: `<@${state.userId}> ✖ **Failed to send request to admins.**`,
+                    content: lang === 'ar'
+                        ? `<@${state.userId}> ✖ ${boldArabic('تعذر إرسال الطلب إلى الإدارة.')}`
+                        : `<@${state.userId}> ✖ **Failed to send request to admins.**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
                 return;
@@ -1946,8 +1958,11 @@ module.exports = {
             });
 
             const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
+            const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
             await interaction.channel.send({
-                content: `<@${state.userId}> ${botMsg} **Screenshot received! Our staff has been notified and will review your request shortly.**`,
+                content: lang === 'ar'
+                    ? `<@${state.userId}> ${botMsg} ${boldArabic('تم استلام لقطة الشاشة! تم إخطار الإدارة وسيتم مراجعة طلبك قريبًا.')}`
+                    : `<@${state.userId}> ${botMsg} **Screenshot received! Our staff has been notified and will review your request shortly.**`,
                 allowedMentions: { parse: ['users'] }
             }).catch(() => { });
             return;
@@ -1963,26 +1978,35 @@ module.exports = {
 
             const state = partnershipTicketState.get(interaction.channelId);
             if (!state || !state.userId || !state.adText) {
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 return safeReply({
-                    content: `<@${interaction.user.id}> ✖ **This partnership ticket is not ready yet.**`,
+                    content: lang === 'ar'
+                        ? `<@${interaction.user.id}> ✖ ${boldArabic('هذه التذكرة غير جاهزة بعد.')}`
+                        : `<@${interaction.user.id}> ✖ **This partnership ticket is not ready yet.**`,
                     allowedMentions: { parse: ['users'] }
                 });
             }
 
             if (interaction.user.id !== state.userId) {
+                const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
                 return safeReply({
-                    content: `<@${interaction.user.id}> ✖ **Only the ticket owner can use this.**`,
+                    content: lang === 'ar'
+                        ? `<@${interaction.user.id}> ✖ ${boldArabic('مالك التذكرة فقط يمكنه استخدام هذا.')}`
+                        : `<@${interaction.user.id}> ✖ **Only the ticket owner can use this.**`,
                     allowedMentions: { parse: ['users'] }
                 });
             }
 
             const botMsg = `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
             const whitesEmoji = interaction.client.emojis.cache.find((e) => e?.name === '761412whites')?.toString() || '▫️';
+            const lang = ticketLanguageByChannel.get(interaction.channelId) || 'en';
             await interaction.deferUpdate().catch(() => { });
 
             if (interaction.customId === 'partner_proceed_no') {
                 await interaction.channel.send({
-                    content: `<@${state.userId}> ${botMsg} **Thank you for your time. Goodbye!**`,
+                    content: lang === 'ar'
+                        ? `<@${state.userId}> ${botMsg} ${boldArabic('شكرًا لوقتك. مع السلامة!')}`
+                        : `<@${state.userId}> ${botMsg} **Thank you for your time. Goodbye!**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
@@ -2010,12 +2034,16 @@ module.exports = {
             });
 
             await interaction.channel.send({
-                content: `<@${state.userId}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
+                content: lang === 'ar'
+                    ? `<@${state.userId}> ${botMsg} ${boldArabic('ممتاز! الآن انشر إعلاننا في سيرفرك، ثم ارفع لقطة شاشة هنا، وبعدها اضغط زر [Verify ✦].')}`
+                    : `<@${state.userId}> ${botMsg} **Perfect! Now, please post our advertisement in your server, upload a screenshot here, and then click the [Verify ✦] button.**`,
                 allowedMentions: { parse: ['users'] }
             }).catch(() => { });
 
             await interaction.channel.send({
-                content: `${whitesEmoji} Advertisement to post:`,
+                content: lang === 'ar'
+                    ? `${whitesEmoji} ${boldArabic('الإعلان المراد نشره:')}`
+                    : `${whitesEmoji} Advertisement to post:`,
                 allowedMentions: { parse: [] }
             }).catch(() => { });
 
@@ -2027,7 +2055,7 @@ module.exports = {
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('partner_verify')
-                    .setLabel('Verify ✦')
+                    .setLabel(lang === 'ar' ? 'تحقق ✦' : 'Verify ✦')
                     .setStyle(ButtonStyle.Primary)
             );
 
@@ -2083,12 +2111,18 @@ module.exports = {
 
             if (interaction.customId === 'admin_partner_reject') {
                 await ticketChannel.send({
-                    content: `<@${req.userId}> ${botMsg} **Sorry, your partnership request has been declined. This ticket will close shortly.**`,
+                    content: lang === 'ar'
+                        ? `<@${req.userId}> ${botMsg} ${boldArabic('نأسف، تم رفض طلب الشراكة. سيتم إغلاق التذكرة قريبًا.')}`
+                        : `<@${req.userId}> ${botMsg} **Sorry, your partnership request has been declined. This ticket will close shortly.**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
                 try {
-                    await ticketOwner?.send({ content: '**Hello! Unfortunately, your partnership request in ELORA was declined. Thank you for your interest.**' });
+                    await ticketOwner?.send({
+                        content: lang === 'ar'
+                            ? boldArabic('مرحبًا! للأسف تم رفض طلب الشراكة الخاص بك في ELORA. نشكرك على اهتمامك.')
+                            : '**Hello! Unfortunately, your partnership request in ELORA was declined. Thank you for your interest.**'
+                    });
                 } catch (_) {
                     // ignore
                 }
@@ -2117,7 +2151,9 @@ module.exports = {
             const partnersChannel = interaction.guild.channels.cache.get(partnersChannelId) || await interaction.guild.channels.fetch(partnersChannelId).catch(() => null);
             if (!partnersChannel || partnersChannel.type !== ChannelType.GuildText) {
                 await ticketChannel.send({
-                    content: `<@${req.userId}> ✖ **Partners channel not found.**`,
+                    content: lang === 'ar'
+                        ? `<@${req.userId}> ✖ ${boldArabic('تعذر العثور على قناة الشركاء.')}`
+                        : `<@${req.userId}> ✖ **Partners channel not found.**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
                 return;
@@ -2131,15 +2167,17 @@ module.exports = {
             }).catch(() => null);
 
             await ticketChannel.send({
-                content: `<@${req.userId}> ${botMsg} **Success! Your advertisement is now live in <#1475546263977066606>. This ticket will close shortly.**`,
+                content: lang === 'ar'
+                    ? `<@${req.userId}> ${botMsg} ${boldArabic('تم بنجاح! تم نشر إعلانك في <#1475546263977066606>. سيتم إغلاق التذكرة قريبًا.')}`
+                    : `<@${req.userId}> ${botMsg} **Success! Your advertisement is now live in <#1475546263977066606>. This ticket will close shortly.**`,
                 allowedMentions: { parse: ['users'] }
             }).catch(() => { });
 
             try {
                 const ratingRow = new ActionRowBuilder().addComponents(
                     new StringSelectMenuBuilder()
-                        .setCustomId('partner_rating_menu')
-                        .setPlaceholder('✦ Rate your experience')
+                        .setCustomId(`partner_rating_menu_${lang}`)
+                        .setPlaceholder(lang === 'ar' ? '✦ قيّم تجربتك' : '✦ Rate your experience')
                         .addOptions(
                             { label: '⭐', value: '1', description: '1 Star', emoji: { id: '1487391271759646750' } },
                             { label: '⭐⭐', value: '2', description: '2 Stars', emoji: { id: '1487391271759646750' } },
@@ -2151,13 +2189,15 @@ module.exports = {
 
                 const feedbackRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
-                        .setCustomId('partner_feedback_btn')
-                        .setLabel('Leave Feedback')
+                        .setCustomId(`partner_feedback_btn_${lang}`)
+                        .setLabel(lang === 'ar' ? 'اترك ملاحظاتك' : 'Leave Feedback')
                         .setStyle(ButtonStyle.Secondary)
                 );
 
                 await ticketOwner?.send({
-                    content: '**Congratulations! Your partnership request in ELORA has been accepted! We would appreciate it if you could rate your experience below.**',
+                    content: lang === 'ar'
+                        ? boldArabic('تهانينا! تم قبول طلب الشراكة الخاص بك في ELORA! سنقدّر تقييمك للتجربة أدناه.')
+                        : '**Congratulations! Your partnership request in ELORA has been accepted! We would appreciate it if you could rate your experience below.**',
                     components: [ratingRow, feedbackRow]
                 });
             } catch (_) {
@@ -2184,12 +2224,17 @@ module.exports = {
             return;
         }
 
-        if (interaction.isStringSelectMenu?.() && interaction.customId === 'partner_rating_menu') {
+        if (interaction.isStringSelectMenu?.() && String(interaction.customId || '').startsWith('partner_rating_menu')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const rating = interaction.values?.[0];
             await interaction.deferUpdate().catch(() => { });
 
             try {
-                await interaction.user.send({ content: '✔ **Feedback received. Thank you!**' });
+                await interaction.user.send({
+                    content: lang === 'ar'
+                        ? boldArabic('تم استلام ملاحظاتك. شكرًا لك!')
+                        : '✔ **Feedback received. Thank you!**'
+                });
             } catch (_) {
                 // ignore
             }
@@ -2354,7 +2399,7 @@ module.exports = {
                 if (userObj) {
                     try {
                         const ratingMenu = new StringSelectMenuBuilder()
-                            .setCustomId('girls_rating_menu')
+                            .setCustomId(`girls_rating_menu_${lang}`)
                             .setPlaceholder(lang === 'ar' ? '✦ قيّمي تجربتك' : '✦ Rate your experience')
                             .addOptions(
                                 { label: '1 Star ⭐', value: '1 ⭐', emoji: { id: '1487391271759646750' } },
@@ -2366,7 +2411,7 @@ module.exports = {
 
                         const ratingRow = new ActionRowBuilder().addComponents(ratingMenu);
                         const feedbackRow = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId('girls_feedback_btn').setLabel(lang === 'ar' ? 'اتركي ملاحظاتك' : 'Leave Feedback').setStyle(ButtonStyle.Secondary)
+                            new ButtonBuilder().setCustomId(`girls_feedback_btn_${lang}`).setLabel(lang === 'ar' ? 'اتركي ملاحظاتك' : 'Leave Feedback').setStyle(ButtonStyle.Secondary)
                         );
 
                         await userObj.send({
@@ -2392,9 +2437,14 @@ module.exports = {
             }
         }
 
-        if (interaction.isStringSelectMenu?.() && interaction.customId === 'girls_rating_menu') {
+        if (interaction.isStringSelectMenu?.() && String(interaction.customId || '').startsWith('girls_rating_menu')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const stars = String(interaction.values?.[0] || '').trim();
-            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
+            await interaction.reply({
+                content: lang === 'ar'
+                    ? boldArabic('تم استلام ملاحظاتك. شكرًا لكِ!')
+                    : '✔ **Feedback received. Thank you!**'
+            }).catch(() => { });
 
             const adminChannelId = '1489682035642601584';
             const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
@@ -2413,14 +2463,15 @@ module.exports = {
             return;
         }
 
-        if (interaction.isButton?.() && interaction.customId === 'girls_feedback_btn') {
+        if (interaction.isButton?.() && String(interaction.customId || '').startsWith('girls_feedback_btn')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const modal = new ModalBuilder()
-                .setCustomId('girls_feedback_modal')
-                .setTitle('Girls Verification Feedback');
+                .setCustomId(`girls_feedback_modal_${lang}`)
+                .setTitle(lang === 'ar' ? 'ملاحظات التوثيق' : 'Girls Verification Feedback');
 
             const input = new TextInputBuilder()
                 .setCustomId('girls_feedback_text')
-                .setLabel('Your feedback')
+                .setLabel(lang === 'ar' ? 'ملاحظاتك' : 'Your feedback')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true)
                 .setMaxLength(1000);
@@ -2429,9 +2480,14 @@ module.exports = {
             return interaction.showModal(modal).catch(() => { });
         }
 
-        if (interaction.isModalSubmit?.() && interaction.customId === 'girls_feedback_modal') {
+        if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('girls_feedback_modal')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const feedback = interaction.fields.getTextInputValue('girls_feedback_text');
-            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
+            await interaction.reply({
+                content: lang === 'ar'
+                    ? boldArabic('تم استلام ملاحظاتك. شكرًا لكِ!')
+                    : '✔ **Feedback received. Thank you!**'
+            }).catch(() => { });
 
             const adminChannelId = '1489682035642601584';
             const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
@@ -2450,14 +2506,15 @@ module.exports = {
             return;
         }
 
-        if (interaction.isButton?.() && interaction.customId === 'partner_feedback_btn') {
+        if (interaction.isButton?.() && String(interaction.customId || '').startsWith('partner_feedback_btn')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const modal = new ModalBuilder()
-                .setCustomId('partner_feedback_modal')
-                .setTitle('Partnership Feedback');
+                .setCustomId(`partner_feedback_modal_${lang}`)
+                .setTitle(lang === 'ar' ? 'ملاحظات الشراكة' : 'Partnership Feedback');
 
             const input = new TextInputBuilder()
                 .setCustomId('partner_feedback_text')
-                .setLabel('Your feedback')
+                .setLabel(lang === 'ar' ? 'ملاحظاتك' : 'Your feedback')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true)
                 .setMaxLength(1000);
@@ -2468,9 +2525,14 @@ module.exports = {
             return interaction.showModal(modal).catch(() => { });
         }
 
-        if (interaction.isModalSubmit?.() && interaction.customId === 'partner_feedback_modal') {
+        if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('partner_feedback_modal')) {
+            const lang = String(interaction.customId || '').split('_').pop() === 'ar' ? 'ar' : 'en';
             const feedback = interaction.fields.getTextInputValue('partner_feedback_text');
-            await interaction.reply({ content: '✔ **Feedback received. Thank you!**' }).catch(() => { });
+            await interaction.reply({
+                content: lang === 'ar'
+                    ? boldArabic('تم استلام ملاحظاتك. شكرًا لك!')
+                    : '✔ **Feedback received. Thank you!**'
+            }).catch(() => { });
 
             const adminChannelId = '1489647248186015776';
             const adminChannel = await client.channels.fetch(adminChannelId).catch(() => null);
