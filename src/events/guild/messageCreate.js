@@ -1,14 +1,17 @@
-const { unfurlSocialLink } = require('../../services/socialUnfurlService');
+const { extractCandidateUrls, isSupportedSocialVideoUrl, buildSourcedPayload } = require('../../services/socialVideoPreviewService');
 const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
 
 const INCOGNITO_CHANNEL_ID = '1484939016351645808';
 const INCOGNITO_LOGS_CHANNEL_ID = '1484940148994084934';
 const INCOGNITO_WEBHOOK_NAME = 'Incognito Room';
 const INCOGNITO_AVATAR_URL = 'https://singlecolorimage.com/get/808080/128x128';
+
+const SOCIAL_VIDEO_COOLDOWN_MS = 10_000;
+const socialVideoCooldownByUser = new Map();
 
 function randomIncognitoName() {
     const prefixes = ['User', 'Ghost', 'Shadow', 'Anon', 'Wisp', 'Null'];
@@ -481,19 +484,55 @@ module.exports = {
             console.error('[LEVELING] Error:', e);
         }
 
-        // --- Social Unfurl (TikTok Only) ---
+        // --- Social Video Preview (Download + Upload) ---
         try {
-            const unfurled = await unfurlSocialLink(message.content);
-            if (unfurled) {
-                const userTag = message.author.tag;
-                await message.channel.send({
-                    content: `**${userTag}:** ${unfurled}`
-                }).catch(() => { });
-                await message.delete().catch(() => { });
-                return; // منع تكرار المعالجة
+            const content = String(message.content || '').trim();
+            if (content) {
+                const urls = extractCandidateUrls(content);
+                const url = urls.find((u) => isSupportedSocialVideoUrl(u));
+
+                if (url) {
+                    const now = Date.now();
+                    const last = socialVideoCooldownByUser.get(message.author.id) || 0;
+                    if (now - last < SOCIAL_VIDEO_COOLDOWN_MS) {
+                        return;
+                    }
+                    socialVideoCooldownByUser.set(message.author.id, now);
+
+                    const sourced = await buildSourcedPayload({ message, url });
+
+                    const embed = new EmbedBuilder()
+                        .setColor(0x000000)
+                        .setTitle('✦ Sourced (Minimalist).')
+                        .setDescription(`> **Posted by:** ${sourced.postedByMention}`);
+
+                    embed.addFields(
+                        {
+                            name: 'Stats',
+                            value: `Likes: \`${sourced.likes ?? '—'}\` | Shares: \`${sourced.shares ?? '—'}\``,
+                            inline: true
+                        }
+                    );
+
+                    const attachment = new AttachmentBuilder(sourced.buffer, { name: sourced.filename });
+
+                    await message.channel.send({
+                        embeds: [embed],
+                        files: [attachment]
+                    }).catch(() => { });
+
+                    if (message.deletable) {
+                        await message.delete().catch(() => { });
+                    }
+                    return;
+                }
             }
         } catch (e) {
-            console.error('[UNFURL] Error:', e);
+            if (String(e?.message || '') === 'FILE_TOO_LARGE') {
+                // ignore oversized videos silently for performance
+                return;
+            }
+            console.error('[SOCIAL_VIDEO] Error:', e);
         }
 
         // --- Prefix Commands (after filters/systems) ---
