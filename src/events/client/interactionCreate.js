@@ -1613,13 +1613,16 @@ module.exports = {
 
             // --- Verification Button ---
             if (interaction.customId === 'verify_astray') {
+                if (interaction.channelId !== '1462014452382830786') {
+                    return;
+                }
                 const roleId = client.config.astrayRoleId;
                 const role = interaction.guild.roles.cache.get(roleId);
                 if (!role) return safeReply({ content: '❌ Role not found.', ephemeral: true });
                 if (interaction.member.roles.cache.has(roleId)) return safeReply({ content: 'ℹ️ Already verified.', ephemeral: true });
                 try {
                     await interaction.member.roles.add(role);
-                    return safeReply({ content: '🗝️ **Access Granted.**', ephemeral: true });
+                    return safeReply({ content: '**✦ Verified. Access granted.**', ephemeral: true });
                 } catch (error) {
                     return safeReply({ content: '❌ Hierarchy error.', ephemeral: true });
                 }
