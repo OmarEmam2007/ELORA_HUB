@@ -320,26 +320,26 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setColor(0x2b2d31)
-                .setTitle(`⸺⸺  ${toSmallCaps('Ticket Control')}  ⸺⸺`)
+                .setTitle(`⟡  ${toSmallCaps('Ticket Control')}  ⟡`)
                 .setDescription(
                     `**${toSmallCaps('Staff Panel')}**\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `**${toSmallCaps('Lock')}**  •  **${toSmallCaps('Unlock')}**  •  **${toSmallCaps('Close')}**`
+                    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `⛓  ${toSmallCaps('Lock')}    ⟡    🔓  ${toSmallCaps('Unlock')}    ⟡    ⨯  ${toSmallCaps('Close')}`
                 )
                 .setFooter(THEME?.FOOTER || null);
 
             const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_lock')
-                    .setLabel(toSmallCaps('Lock'))
+                    .setLabel(`⛓ ${toSmallCaps('Lock')}`)
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_unlock')
-                    .setLabel(toSmallCaps('Unlock'))
+                    .setLabel(`🔓 ${toSmallCaps('Unlock')}`)
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_close')
-                    .setLabel(toSmallCaps('Close'))
+                    .setLabel(`⨯ ${toSmallCaps('Close')}`)
                     .setStyle(ButtonStyle.Secondary)
             );
 
@@ -1776,65 +1776,14 @@ module.exports = {
                         // ignore
                     }
 
-                    const embed = new EmbedBuilder().setTitle('📩 Ticket Opened').setDescription('Staff have been notified.').setColor('#5865F2');
-                    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger));
                     await sendTicketControlPanel(thread).catch(() => { });
                     await thread.send({
                         content: `<@${OWNER_USER_ID}> <@${MODERATOR_USER_ID}>\n${interaction.user}`,
-                        allowedMentions: { users: [OWNER_USER_ID, MODERATOR_USER_ID] },
-                        embeds: [embed],
-                        components: [row]
-                    });
+                        allowedMentions: { users: [OWNER_USER_ID, MODERATOR_USER_ID] }
+                    }).catch(() => { });
 
                     return safeEdit({ content: `✅ Ticket: <#${thread.id}>` });
                 } catch (e) { return safeEdit({ content: '❌ Creation failed.' }); }
-            }
-
-            if (interaction.customId === 'close_ticket') {
-                const STAFF_ROLE_IDS = [
-                    '1461766723274412126'
-                ];
-                const isStaff = Boolean(interaction.member?.roles?.cache?.some(r => STAFF_ROLE_IDS.includes(r.id)));
-                if (!isStaff) {
-                    return safeReply({ content: 'Only Staff can close this ticket.', ephemeral: true });
-                }
-
-                if (deletingTicketChannels.has(interaction.channelId)) return;
-                deletingTicketChannels.add(interaction.channelId);
-
-                await interaction.deferUpdate().catch(() => { });
-                try {
-                    const rows = interaction.message?.components;
-                    if (rows?.length) {
-                        const disabled = rows.map((row) => {
-                            const r = ActionRowBuilder.from(row);
-                            r.components = r.components.map((c) => ButtonBuilder.from(c).setDisabled(true));
-                            return r;
-                        });
-                        await interaction.message.edit({ components: disabled }).catch(() => { });
-                    }
-                } catch (_) {
-                    // ignore
-                }
-
-                console.log(`[TICKET] deleting ticket channel/thread: ${interaction.channelId} (trigger=close_ticket by ${interaction.user.id})`);
-
-                try {
-                    await new Promise((r) => setTimeout(r, 2000));
-                    const fetched = await interaction.guild.channels.fetch(interaction.channelId).catch(() => null);
-                    if (!fetched) return;
-                    if (!fetched.deletable) return;
-                    await fetched.delete('Ticket close (safe delete)').catch((e) => {
-                        if (e?.code !== 10003 && !String(e?.message || '').toLowerCase().includes('unknown channel')) {
-                            // ignore
-                        }
-                    });
-                } catch (_) {
-                    // ignore
-                } finally {
-                    deletingTicketChannels.delete(interaction.channelId);
-                }
-                return;
             }
 
             if (interaction.customId === 'ticket_close') {
@@ -1875,6 +1824,47 @@ module.exports = {
                     deletingTicketChannels.delete(interaction.channelId);
                 }
                 return;
+            }
+
+            if (interaction.customId === 'ticket_ctrl_close' || interaction.customId === 'ticket_ctrl_lock' || interaction.customId === 'ticket_ctrl_unlock') {
+                if (!interaction.guild || !interaction.channel) {
+                    return safeReply({ content: '✖ **Invalid channel.**', ephemeral: true });
+                }
+
+                if (!canUseTicketControls(interaction)) {
+                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
+                }
+
+                await interaction.deferUpdate().catch(() => { });
+
+                if (interaction.customId === 'ticket_ctrl_close') {
+                    await safeDeleteTicketChannel(interaction.guild, interaction.channelId, 'Ticket closed via control panel');
+                    return;
+                }
+
+                const ch = interaction.channel;
+                if (ch?.isThread?.()) {
+                    if (interaction.customId === 'ticket_ctrl_lock') {
+                        await ch.setLocked(true, 'Ticket locked via control panel').catch(() => { });
+                    }
+                    if (interaction.customId === 'ticket_ctrl_unlock') {
+                        await ch.setLocked(false, 'Ticket unlocked via control panel').catch(() => { });
+                    }
+                    return;
+                }
+
+                const topic = String(ch?.topic || '');
+                const openerId = parseTicketOwnerFromTopic(topic);
+                if (!openerId) return;
+
+                if (interaction.customId === 'ticket_ctrl_lock') {
+                    await ch.permissionOverwrites.edit(openerId, { SendMessages: false }, { reason: 'Ticket locked via control panel' }).catch(() => { });
+                    return;
+                }
+                if (interaction.customId === 'ticket_ctrl_unlock') {
+                    await ch.permissionOverwrites.edit(openerId, { SendMessages: true }, { reason: 'Ticket unlocked via control panel' }).catch(() => { });
+                    return;
+                }
             }
 
             if (interaction.customId === 'add_verified_role') {
@@ -2504,46 +2494,6 @@ module.exports = {
                 return;
             }
 
-            if (interaction.customId === 'ticket_ctrl_close' || interaction.customId === 'ticket_ctrl_lock' || interaction.customId === 'ticket_ctrl_unlock') {
-                if (!interaction.guild || !interaction.channel) {
-                    return safeReply({ content: '✖ **Invalid channel.**', ephemeral: true });
-                }
-
-                if (!canUseTicketControls(interaction)) {
-                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
-                }
-
-                await interaction.deferUpdate().catch(() => { });
-
-                if (interaction.customId === 'ticket_ctrl_close') {
-                    await safeDeleteTicketChannel(interaction.guild, interaction.channelId, 'Ticket closed via control panel');
-                    return;
-                }
-
-                const ch = interaction.channel;
-                if (ch?.isThread?.()) {
-                    if (interaction.customId === 'ticket_ctrl_lock') {
-                        await ch.setLocked(true, 'Ticket locked via control panel').catch(() => { });
-                    }
-                    if (interaction.customId === 'ticket_ctrl_unlock') {
-                        await ch.setLocked(false, 'Ticket unlocked via control panel').catch(() => { });
-                    }
-                    return;
-                }
-
-                const topic = String(ch?.topic || '');
-                const openerId = parseTicketOwnerFromTopic(topic);
-                if (!openerId) return;
-
-                if (interaction.customId === 'ticket_ctrl_lock') {
-                    await ch.permissionOverwrites.edit(openerId, { SendMessages: false }, { reason: 'Ticket locked via control panel' }).catch(() => { });
-                    return;
-                }
-                if (interaction.customId === 'ticket_ctrl_unlock') {
-                    await ch.permissionOverwrites.edit(openerId, { SendMessages: true }, { reason: 'Ticket unlocked via control panel' }).catch(() => { });
-                    return;
-                }
-            }
         }
 
         if (interaction.isStringSelectMenu?.() && String(interaction.customId || '').startsWith('girls_rating_menu')) {
@@ -2842,14 +2792,6 @@ module.exports = {
                     }).join('');
                 };
 
-                const row = new ActionRowBuilder();
-                row.addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('ticket_close')
-                        .setLabel(toSmallCaps('CLOSE TICKET'))
-                        .setStyle(ButtonStyle.Danger)
-                );
-
                 const mentionParts = [`<@${OWNER_USER_ID}>`, `<@${ADMIN_USER_ID}>`];
                 if (value === 'partnerships') mentionParts.push(`<@&${PARTNERSHIPS_ROLE_ID}>`);
 
@@ -2864,8 +2806,7 @@ module.exports = {
                         roles: value === 'partnerships'
                             ? [PARTNERSHIPS_ROLE_ID]
                             : []
-                    },
-                    components: [row]
+                    }
                 }).catch(() => { });
             } catch (_) {
                 // ignore

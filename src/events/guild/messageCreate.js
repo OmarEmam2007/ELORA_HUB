@@ -127,7 +127,7 @@ module.exports = {
                 if (!targetUser) targetUser = message.author;
 
                 const fetchedUser = await message.client.users.fetch(targetUser.id, { force: true }).catch(() => null);
-                const bannerUrl = fetchedUser?.bannerURL?.({ size: 2048 });
+                const bannerUrl = fetchedUser?.bannerURL?.({ size: 4096, forceStatic: false });
 
                 if (!bannerUrl) {
                     await message.reply({ content: `**⤿ <@${targetUser.id}> doesn't have a banner.**`, allowedMentions: { parse: ['users'] } }).catch(() => {});
@@ -136,9 +136,14 @@ module.exports = {
 
                 const embed = new EmbedBuilder()
                     .setColor('#000000')
-                    .setTitle('**❖ User Banner**')
-                    .setDescription(`**⤿ Here is the profile banner for <@${targetUser.id}>**`)
-                    .setImage(bannerUrl);
+                    .setAuthor({
+                        name: `${targetUser.tag}'s Banner`,
+                        iconURL: targetUser.displayAvatarURL({ dynamic: true, size: 256 })
+                    })
+                    .setTitle('**❖ PROFILE BANNER**')
+                    .setDescription(`**⤿ Banner for <@${targetUser.id}>**\n[**Open Banner**](${bannerUrl})`)
+                    .setImage(bannerUrl)
+                    .setFooter({ text: `Requested by ${message.author.tag}` });
 
                 await message.reply({ embeds: [embed], allowedMentions: { parse: ['users'] } }).catch(() => {});
                 return;
