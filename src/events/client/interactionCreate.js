@@ -290,6 +290,68 @@ module.exports = {
             return { embed, row };
         };
 
+        const TICKET_CONTROL_ALLOWED_ROLE_IDS = new Set([
+            '1461766927306457109',
+            '1461767579361349826',
+            '1484963266177531986'
+        ]);
+        const TICKET_CONTROL_OWNER_USER_ID = '1085496418745200730';
+
+        const canUseTicketControls = (interaction) => {
+            if (!interaction?.member) return false;
+            if (interaction.user?.id === TICKET_CONTROL_OWNER_USER_ID) return true;
+
+            const roles = interaction.member?.roles?.cache;
+            if (!roles) return false;
+            return roles.some((r) => TICKET_CONTROL_ALLOWED_ROLE_IDS.has(r.id));
+        };
+
+        const buildTicketControlPanel = () => {
+            const toSmallCaps = (input) => {
+                const map = {
+                    a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                    n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+                };
+                return String(input || '').split('').map((ch) => {
+                    const lower = ch.toLowerCase();
+                    return map[lower] || ch;
+                }).join('');
+            };
+
+            const embed = new EmbedBuilder()
+                .setColor(0x2b2d31)
+                .setTitle(`⸺⸺  ${toSmallCaps('Ticket Control')}  ⸺⸺`)
+                .setDescription(
+                    `**${toSmallCaps('Staff Panel')}**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `**${toSmallCaps('Lock')}**  •  **${toSmallCaps('Unlock')}**  •  **${toSmallCaps('Close')}**`
+                )
+                .setFooter(THEME?.FOOTER || null);
+
+            const row1 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('ticket_ctrl_lock')
+                    .setLabel(toSmallCaps('Lock'))
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('ticket_ctrl_unlock')
+                    .setLabel(toSmallCaps('Unlock'))
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('ticket_ctrl_close')
+                    .setLabel(toSmallCaps('Close'))
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            return { embed, rows: [row1] };
+        };
+
+        const sendTicketControlPanel = async (channel) => {
+            if (!channel?.isTextBased?.()) return null;
+            const panel = buildTicketControlPanel();
+            return channel.send({ embeds: [panel.embed], components: panel.rows }).catch(() => null);
+        };
+
         const safeDeleteTicketChannel = async (guild, channelId, reason) => {
             if (!guild || !channelId) return;
             if (deletingTicketChannels.has(channelId)) return;
@@ -1716,6 +1778,7 @@ module.exports = {
 
                     const embed = new EmbedBuilder().setTitle('📩 Ticket Opened').setDescription('Staff have been notified.').setColor('#5865F2');
                     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('Close').setStyle(ButtonStyle.Danger));
+                    await sendTicketControlPanel(thread).catch(() => { });
                     await thread.send({
                         content: `<@${OWNER_USER_ID}> <@${MODERATOR_USER_ID}>\n${interaction.user}`,
                         allowedMentions: { users: [OWNER_USER_ID, MODERATOR_USER_ID] },
@@ -2090,6 +2153,8 @@ module.exports = {
                 return;
             }
 
+            const lang = ticketLanguageByChannel.get(ticketChannel.id) || 'en';
+
             const disableRows = (rows) => {
                 try {
                     if (!rows?.length) return null;
@@ -2438,6 +2503,47 @@ module.exports = {
                 await safeDeleteTicketChannel(interaction.guild, ticketChannel.id, 'Girls verification accepted');
                 return;
             }
+
+            if (interaction.customId === 'ticket_ctrl_close' || interaction.customId === 'ticket_ctrl_lock' || interaction.customId === 'ticket_ctrl_unlock') {
+                if (!interaction.guild || !interaction.channel) {
+                    return safeReply({ content: '✖ **Invalid channel.**', ephemeral: true });
+                }
+
+                if (!canUseTicketControls(interaction)) {
+                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
+                }
+
+                await interaction.deferUpdate().catch(() => { });
+
+                if (interaction.customId === 'ticket_ctrl_close') {
+                    await safeDeleteTicketChannel(interaction.guild, interaction.channelId, 'Ticket closed via control panel');
+                    return;
+                }
+
+                const ch = interaction.channel;
+                if (ch?.isThread?.()) {
+                    if (interaction.customId === 'ticket_ctrl_lock') {
+                        await ch.setLocked(true, 'Ticket locked via control panel').catch(() => { });
+                    }
+                    if (interaction.customId === 'ticket_ctrl_unlock') {
+                        await ch.setLocked(false, 'Ticket unlocked via control panel').catch(() => { });
+                    }
+                    return;
+                }
+
+                const topic = String(ch?.topic || '');
+                const openerId = parseTicketOwnerFromTopic(topic);
+                if (!openerId) return;
+
+                if (interaction.customId === 'ticket_ctrl_lock') {
+                    await ch.permissionOverwrites.edit(openerId, { SendMessages: false }, { reason: 'Ticket locked via control panel' }).catch(() => { });
+                    return;
+                }
+                if (interaction.customId === 'ticket_ctrl_unlock') {
+                    await ch.permissionOverwrites.edit(openerId, { SendMessages: true }, { reason: 'Ticket unlocked via control panel' }).catch(() => { });
+                    return;
+                }
+            }
         }
 
         if (interaction.isStringSelectMenu?.() && String(interaction.customId || '').startsWith('girls_rating_menu')) {
@@ -2668,6 +2774,8 @@ module.exports = {
             if (!created) {
                 return safeEdit({ content: '❌ Failed to create ticket channel. Check bot permissions.' });
             }
+
+            await sendTicketControlPanel(created).catch(() => { });
 
             if (value === 'partnerships') {
                 try {

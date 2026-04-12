@@ -114,6 +114,40 @@ module.exports = {
         }
 
         try {
+            const text = String(message.content || '').trim();
+            if (/^\.ba(\s|$)/i.test(text)) {
+                const mentioned = message.mentions?.users?.first?.() || null;
+                let targetUser = mentioned;
+
+                if (!targetUser && message.reference?.messageId) {
+                    const refMsg = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+                    targetUser = refMsg?.author || null;
+                }
+
+                if (!targetUser) targetUser = message.author;
+
+                const fetchedUser = await message.client.users.fetch(targetUser.id, { force: true }).catch(() => null);
+                const bannerUrl = fetchedUser?.bannerURL?.({ size: 2048 });
+
+                if (!bannerUrl) {
+                    await message.reply({ content: `**⤿ <@${targetUser.id}> doesn't have a banner.**`, allowedMentions: { parse: ['users'] } }).catch(() => {});
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('**❖ User Banner**')
+                    .setDescription(`**⤿ Here is the profile banner for <@${targetUser.id}>**`)
+                    .setImage(bannerUrl);
+
+                await message.reply({ embeds: [embed], allowedMentions: { parse: ['users'] } }).catch(() => {});
+                return;
+            }
+        } catch (e) {
+            console.error('[BANNER] Error:', e);
+        }
+
+        try {
             if (message.channelId === INCOGNITO_CHANNEL_ID) {
                 const originalContent = message.content ?? '';
                 const attachments = Array.from(message.attachments?.values?.() || []);
