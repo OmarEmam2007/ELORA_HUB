@@ -324,22 +324,22 @@ module.exports = {
                 .setDescription(
                     `**${toSmallCaps('Staff Panel')}**\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `⛓  ${toSmallCaps('Lock')}    ⟡    🔓  ${toSmallCaps('Unlock')}    ⟡    ⨯  ${toSmallCaps('Close')}`
+                    `${toSmallCaps('Lock')}    ⟡    ${toSmallCaps('Unlock')}    ⟡    ${toSmallCaps('Close')}`
                 )
                 .setFooter(THEME?.FOOTER || null);
 
             const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_lock')
-                    .setLabel(`⛓ ${toSmallCaps('Lock')}`)
+                    .setLabel(`${toSmallCaps('Lock')}`)
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_unlock')
-                    .setLabel(`🔓 ${toSmallCaps('Unlock')}`)
+                    .setLabel(`${toSmallCaps('Unlock')}`)
                     .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                     .setCustomId('ticket_ctrl_close')
-                    .setLabel(`⨯ ${toSmallCaps('Close')}`)
+                    .setLabel(`${toSmallCaps('Close')}`)
                     .setStyle(ButtonStyle.Secondary)
             );
 
@@ -1835,9 +1835,17 @@ module.exports = {
                     return safeReply({ content: '❌ Admin only.', ephemeral: true });
                 }
 
-                await interaction.deferUpdate().catch(() => { });
+                const safeEphemeralAck = async (text) => {
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            return await interaction.followUp({ content: String(text), ephemeral: true });
+                        }
+                        return await interaction.reply({ content: String(text), ephemeral: true });
+                    } catch (_) { }
+                };
 
                 if (interaction.customId === 'ticket_ctrl_close') {
+                    await safeEphemeralAck('✅ **Control executed.** *(Only you can see this)*');
                     await safeDeleteTicketChannel(interaction.guild, interaction.channelId, 'Ticket closed via control panel');
                     return;
                 }
@@ -1846,9 +1854,11 @@ module.exports = {
                 if (ch?.isThread?.()) {
                     if (interaction.customId === 'ticket_ctrl_lock') {
                         await ch.setLocked(true, 'Ticket locked via control panel').catch(() => { });
+                        await safeEphemeralAck('✅ **Locked.** *(Only you can see this)*');
                     }
                     if (interaction.customId === 'ticket_ctrl_unlock') {
                         await ch.setLocked(false, 'Ticket unlocked via control panel').catch(() => { });
+                        await safeEphemeralAck('✅ **Unlocked.** *(Only you can see this)*');
                     }
                     return;
                 }
@@ -1859,10 +1869,12 @@ module.exports = {
 
                 if (interaction.customId === 'ticket_ctrl_lock') {
                     await ch.permissionOverwrites.edit(openerId, { SendMessages: false }, { reason: 'Ticket locked via control panel' }).catch(() => { });
+                    await safeEphemeralAck('✅ **Locked.** *(Only you can see this)*');
                     return;
                 }
                 if (interaction.customId === 'ticket_ctrl_unlock') {
                     await ch.permissionOverwrites.edit(openerId, { SendMessages: true }, { reason: 'Ticket unlocked via control panel' }).catch(() => { });
+                    await safeEphemeralAck('✅ **Unlocked.** *(Only you can see this)*');
                     return;
                 }
             }
