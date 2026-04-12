@@ -4,7 +4,7 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
-        // --- AFK Auto Mute/Deafen Bootstrap (best-effort) ---
+        // --- AFK Auto Mute Bootstrap (best-effort) ---
         try {
             const User = require('../../models/User');
             const { ChannelType } = require('discord.js');
@@ -17,7 +17,7 @@ module.exports = {
                 const guild = channel.guild;
                 const me = guild?.members?.me;
 
-                if (me?.permissions?.has?.('MuteMembers') && me?.permissions?.has?.('DeafenMembers')) {
+                if (me?.permissions?.has?.('MuteMembers')) {
                     const members = Array.from(channel.members?.values?.() || []);
                     for (const member of members) {
                         try {
@@ -29,28 +29,22 @@ module.exports = {
                             const now = Date.now();
 
                             const needMute = !member.voice?.serverMute;
-                            const needDeaf = !member.voice?.serverDeaf;
 
                             let appliedMute = false;
-                            let appliedDeaf = false;
 
                             if (needMute) {
                                 await member.voice.setMute(true, 'AFK auto-mute (startup)').catch(() => { });
                                 appliedMute = Boolean(member.voice?.serverMute);
                             }
-                            if (needDeaf) {
-                                await member.voice.setDeaf(true, 'AFK auto-deafen (startup)').catch(() => { });
-                                appliedDeaf = Boolean(member.voice?.serverDeaf);
-                            }
 
-                            if (appliedMute || appliedDeaf) {
+                            if (appliedMute) {
                                 await User.findOneAndUpdate(
                                     { userId, guildId },
                                     {
                                         $setOnInsert: { userId, guildId },
                                         $set: {
                                             afkAutoMuted: appliedMute,
-                                            afkAutoDeafened: appliedDeaf,
+                                            afkAutoDeafened: false,
                                             afkAutoAppliedAt: now,
                                             afkAutoChannelId: AFK_CHANNEL_ID
                                         }

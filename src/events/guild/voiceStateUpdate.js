@@ -31,25 +31,25 @@ module.exports = {
 
             const now = Date.now();
 
-            // --- AFK Auto Mute/Deafen (Admin excluded, persistent tracking) ---
+            // --- AFK Auto Mute (Admin excluded, persistent tracking) ---
             try {
                 const moved = oldState.channelId !== newState.channelId;
                 if (moved) {
                     const wasInAfk = oldState.channelId === AFK_CHANNEL_ID;
                     const isInAfk = newState.channelId === AFK_CHANNEL_ID;
 
-                    // On enter AFK: server mute + deafen (unless Administrator)
+                    // On enter AFK: server mute (unless Administrator)
                     if (isInAfk && !wasInAfk) {
                         if (!member.permissions?.has?.('Administrator') && !member.permissions?.has?.(8n)) {
                             const me = guild.members.me;
-                            if (me?.permissions?.has?.('MuteMembers') && me?.permissions?.has?.('DeafenMembers')) {
+                            if (me?.permissions?.has?.('MuteMembers')) {
                                 const profile = await User.findOneAndUpdate(
                                     { userId, guildId },
                                     {
                                         $setOnInsert: { userId, guildId },
                                         $set: {
                                             afkAutoMuted: true,
-                                            afkAutoDeafened: true,
+                                            afkAutoDeafened: false,
                                             afkAutoAppliedAt: now,
                                             afkAutoChannelId: AFK_CHANNEL_ID
                                         }
@@ -58,13 +58,12 @@ module.exports = {
                                 );
 
                                 await member.voice.setMute(true, 'AFK auto-mute').catch(() => { });
-                                await member.voice.setDeaf(true, 'AFK auto-deafen').catch(() => { });
 
                                 // If API calls failed (e.g., missing permission), revert tracking
-                                if (!member.voice?.serverMute || !member.voice?.serverDeaf) {
+                                if (!member.voice?.serverMute) {
                                     if (profile) {
                                         profile.afkAutoMuted = Boolean(member.voice?.serverMute);
-                                        profile.afkAutoDeafened = Boolean(member.voice?.serverDeaf);
+                                        profile.afkAutoDeafened = false;
                                         await profile.save().catch(() => { });
                                     }
                                 }
@@ -78,9 +77,6 @@ module.exports = {
                         if (profile?.afkAutoChannelId === AFK_CHANNEL_ID) {
                             if (profile.afkAutoMuted && member.voice?.serverMute) {
                                 await member.voice.setMute(false, 'AFK auto-unmute').catch(() => { });
-                            }
-                            if (profile.afkAutoDeafened && member.voice?.serverDeaf) {
-                                await member.voice.setDeaf(false, 'AFK auto-undeafen').catch(() => { });
                             }
 
                             profile.afkAutoMuted = false;
