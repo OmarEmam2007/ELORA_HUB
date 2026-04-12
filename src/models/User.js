@@ -18,7 +18,12 @@ const userSchema = new mongoose.Schema({
     marriageCount: { type: Number, default: 0 }, // Total number of marriages
     divorceCount: { type: Number, default: 0 }, // Total number of divorces
     marryDate: { type: Date, default: null }, // Date of current marriage
-    lastDivorceDate: { type: Date, default: null } // Date of last divorce, for cooldown
+    lastDivorceDate: { type: Date, default: null }, // Date of last divorce, for cooldown
+
+    afkAutoMuted: { type: Boolean, default: false },
+    afkAutoDeafened: { type: Boolean, default: false },
+    afkAutoAppliedAt: { type: Number, default: 0 },
+    afkAutoChannelId: { type: String, default: null }
 });
 
 userSchema.index({ userId: 1, guildId: 1 }, { unique: true });

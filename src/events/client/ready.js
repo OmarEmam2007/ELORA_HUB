@@ -4,6 +4,70 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
+        // --- AFK Auto Mute/Deafen Bootstrap (best-effort) ---
+        try {
+            const User = require('../../models/User');
+            const { ChannelType } = require('discord.js');
+            const AFK_CHANNEL_ID = '1473884345780535419';
+
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+            const channel = await client.channels.fetch(AFK_CHANNEL_ID).catch(() => null);
+            if (channel && (channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)) {
+                const guild = channel.guild;
+                const me = guild?.members?.me;
+
+                if (me?.permissions?.has?.('MuteMembers') && me?.permissions?.has?.('DeafenMembers')) {
+                    const members = Array.from(channel.members?.values?.() || []);
+                    for (const member of members) {
+                        try {
+                            if (!member || member.user?.bot) continue;
+                            if (member.permissions?.has?.('Administrator') || member.permissions?.has?.(8n)) continue;
+
+                            const userId = member.id;
+                            const guildId = guild.id;
+                            const now = Date.now();
+
+                            const needMute = !member.voice?.serverMute;
+                            const needDeaf = !member.voice?.serverDeaf;
+
+                            let appliedMute = false;
+                            let appliedDeaf = false;
+
+                            if (needMute) {
+                                await member.voice.setMute(true, 'AFK auto-mute (startup)').catch(() => { });
+                                appliedMute = Boolean(member.voice?.serverMute);
+                            }
+                            if (needDeaf) {
+                                await member.voice.setDeaf(true, 'AFK auto-deafen (startup)').catch(() => { });
+                                appliedDeaf = Boolean(member.voice?.serverDeaf);
+                            }
+
+                            if (appliedMute || appliedDeaf) {
+                                await User.findOneAndUpdate(
+                                    { userId, guildId },
+                                    {
+                                        $setOnInsert: { userId, guildId },
+                                        $set: {
+                                            afkAutoMuted: appliedMute,
+                                            afkAutoDeafened: appliedDeaf,
+                                            afkAutoAppliedAt: now,
+                                            afkAutoChannelId: AFK_CHANNEL_ID
+                                        }
+                                    },
+                                    { upsert: true, new: true }
+                                ).catch(() => { });
+                            }
+                        } finally {
+                            await sleep(250);
+                        }
+                    }
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
+
         // --- ▫️ Giveaway System Bootstrap (best-effort) ---
         try {
             const giveawayService = require('../../services/giveawayService');
