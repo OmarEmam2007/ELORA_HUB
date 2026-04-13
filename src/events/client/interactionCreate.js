@@ -2115,8 +2115,39 @@ module.exports = {
                 allowedMentions: { parse: [] }
             }).catch(() => { });
 
+            const eloraAdChannelId = '1484968584718450819';
+            const adChannel = interaction.guild.channels.cache.get(eloraAdChannelId) || await interaction.guild.channels.fetch(eloraAdChannelId).catch(() => null);
+            if (!adChannel || adChannel.type !== ChannelType.GuildText) {
+                await interaction.channel.send({
+                    content: lang === 'ar'
+                        ? `✖ ${boldArabic('تعذر العثور على قناة الإعلان.')}`
+                        : '✖ **Failed to find the advertisement channel.**',
+                    allowedMentions: { parse: [] }
+                }).catch(() => { });
+                return;
+            }
+
+            const adMsgs = await adChannel.messages.fetch({ limit: 1 }).catch(() => null);
+            const latestAd = adMsgs?.first?.() || null;
+            if (!latestAd) {
+                await interaction.channel.send({
+                    content: lang === 'ar'
+                        ? `✖ ${boldArabic('قناة الإعلان فارغة حاليًا.')}`
+                        : '✖ **The advertisement channel is currently empty.**',
+                    allowedMentions: { parse: [] }
+                }).catch(() => { });
+                return;
+            }
+
+            const adFiles = Array.from(latestAd.attachments?.values?.() || []).map((a) => ({
+                attachment: a.url,
+                name: a.name || undefined
+            }));
+
             await interaction.channel.send({
-                content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                   ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎𝐑𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1479971970966622452/1490332285071786044/elora.png?ex=69d3ab99&is=69d25a19&hm=c18e4685b1346d5e321d1de7c51ca724d2364cdcf17d64e1b9d1acd35104ee3e&=&format=webp&quality=lossless&width=1860&height=759)   ||@everyone|| ||@here ||` ,
+                content: latestAd.content || null,
+                embeds: latestAd.embeds?.length ? latestAd.embeds : undefined,
+                files: adFiles.length ? adFiles : undefined,
                 allowedMentions: { parse: [] }
             }).catch(() => { });
 
