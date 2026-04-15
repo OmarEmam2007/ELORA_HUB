@@ -53,7 +53,7 @@ module.exports = {
     async execute(interaction, client) {
         const channel = interaction.options.getChannel('channel', true);
 
-        const bannerName = 'panel.png';
+        const bannerName = 'nopo.png';
         const bannerCandidates = [
             path.join(__dirname, '../../assets', bannerName),
             path.join(__dirname, '../../../assets', bannerName),

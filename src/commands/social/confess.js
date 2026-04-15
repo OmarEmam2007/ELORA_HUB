@@ -68,7 +68,7 @@ module.exports = {
             // Generate unique confession ID
             const confessionId = `CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-            const bannerName = 'bot_pfp_2.png';
+            const bannerName = 'nopo.png';
             const bannerCandidates = [
                 path.join(__dirname, '../../../assets', bannerName),
                 path.join(__dirname, '../../assets', bannerName),

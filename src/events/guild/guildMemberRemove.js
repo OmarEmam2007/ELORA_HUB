@@ -97,7 +97,7 @@ module.exports = {
             }
 
             if (channel) {
-                const bannerName = 'bye.png';
+                const bannerName = 'nopo.png';
                 const bannerCandidates = [
                     path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
                 ];
