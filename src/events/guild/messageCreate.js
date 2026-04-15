@@ -68,6 +68,28 @@ module.exports = {
                     const guildId = message.guild.id;
                     const nextBump = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
+                    try {
+                        const ch = await client.channels.fetch(BUMP_REMINDER_CHANNEL_ID).catch(() => null);
+                        if (ch && ch.isTextBased?.()) {
+                            const bumperId =
+                                message.interaction?.user?.id ||
+                                message.mentions?.users?.first?.()?.id ||
+                                (String(message.content || '').match(/<@!?(\d+)>/)?.[1] || null);
+
+                            const thanksEmbed = new EmbedBuilder()
+                                .setColor('#000000')
+                                .setDescription('**Thanks for bumping the server**');
+
+                            await ch.send({
+                                content: bumperId ? `<@${bumperId}>` : undefined,
+                                embeds: [thanksEmbed],
+                                allowedMentions: bumperId ? { users: [bumperId] } : { parse: [] }
+                            }).catch(() => { });
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+
                     await Bump.findOneAndUpdate(
                         { guildId },
                         { $set: { nextBumpTime: nextBump, reminded: false } },
