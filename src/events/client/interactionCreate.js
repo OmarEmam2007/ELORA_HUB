@@ -717,7 +717,7 @@ module.exports = {
             }
         }
 
-        if (interaction.isStringSelectMenu?.() && (interaction.customId === 'role_age_select' || interaction.customId === 'role_gender_select')) {
+        if (interaction.isStringSelectMenu?.() && (interaction.customId === 'role_age_select' || interaction.customId === 'role_gender_select' || interaction.customId === 'role_bump_select')) {
             const ROLE_CHANNEL_ID = '1480003221853306971';
             if (interaction.channelId !== ROLE_CHANNEL_ID) {
                 return;
@@ -760,6 +760,8 @@ module.exports = {
                 they_them: '1480007472830873773'
             };
 
+            const BUMP_NOTIFY_ROLE_ID = '1494109618413113415';
+
             const member = interaction.member;
             if (!member || !member.roles?.cache) {
                 return;
@@ -799,6 +801,20 @@ module.exports = {
                 }
                 await member.roles.add(roleId).catch(() => { });
                 return safeEdit({ content: `${okPrefix}**${toSmallCaps('GENDER UPDATED')}**` });
+            }
+
+            if (interaction.customId === 'role_bump_select') {
+                if (value === 'add_bump') {
+                    await member.roles.add(BUMP_NOTIFY_ROLE_ID).catch(() => { });
+                    return safeEdit({ content: `${okPrefix}**${toSmallCaps('UPDATED')}**` });
+                }
+                if (value === 'ignore_bump') {
+                    if (member.roles.cache.has(BUMP_NOTIFY_ROLE_ID)) {
+                        await member.roles.remove(BUMP_NOTIFY_ROLE_ID).catch(() => { });
+                    }
+                    return safeEdit({ content: `${okPrefix}**${toSmallCaps('UPDATED')}**` });
+                }
+                return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
             }
         }
 

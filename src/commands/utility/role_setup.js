@@ -72,11 +72,20 @@ module.exports = {
                 { label: 'ᴛʜᴇʏ/ᴛʜᴇᴍ', value: 'they_them', emoji: { id: '1487391271759646750' } }
             );
 
+        const bumpMenu = new StringSelectMenuBuilder()
+            .setCustomId('role_bump_select')
+            .setPlaceholder('✦ BUMP NOTIFICATIONS')
+            .addOptions(
+                { label: '✦ Notify me', value: 'add_bump' },
+                { label: '✦ No thanks', value: 'ignore_bump' }
+            );
+
         const row1 = new ActionRowBuilder().addComponents(ageMenu);
         const row2 = new ActionRowBuilder().addComponents(genderMenu);
+        const row3 = new ActionRowBuilder().addComponents(bumpMenu);
 
         await channel.send({ content: ' ', files: [banner] });
-        await channel.send({ components: [row1, row2] });
+        await channel.send({ components: [row1, row2, row3] });
 
         await interaction.reply({ content: 'OK', ephemeral: true }).catch(() => { });
     }

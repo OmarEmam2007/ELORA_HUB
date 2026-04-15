@@ -1,6 +1,7 @@
 const { extractCandidateUrls, isSupportedSocialVideoUrl, buildSourcedPayload } = require('../../services/socialVideoPreviewService');
 const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
+const Bump = require('../../models/Bump');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
@@ -12,6 +13,11 @@ const INCOGNITO_AVATAR_URL = 'https://singlecolorimage.com/get/808080/128x128';
 
 const SOCIAL_VIDEO_COOLDOWN_MS = 10_000;
 const socialVideoCooldownByUser = new Map();
+
+const DISBOARD_BOT_ID = '302050872383242240';
+const BUMP_NOTIFY_ROLE_ID = '1494109618413113415';
+const BUMP_REMINDER_CHANNEL_ID = '1461760293968285879';
+const bumpReminderTimeoutByGuild = new Map();
 
 function randomIncognitoName() {
     const prefixes = ['User', 'Ghost', 'Shadow', 'Anon', 'Wisp', 'Null'];
@@ -45,7 +51,65 @@ async function getOrCreateIncognitoWebhook(channel, client) {
 module.exports = {
     name: 'messageCreate',
     async execute(message, client) {
-        if (message.author.bot || message.webhookId || !message.guild) return;
+        if (((message.author?.bot && message.author?.id !== DISBOARD_BOT_ID) || message.webhookId || !message.guild)) return;
+
+        // --- Disboard bump reminder (2-hour timer) ---
+        try {
+            const isDisboard = message.author?.id === DISBOARD_BOT_ID;
+            if (isDisboard) {
+                const content = String(message.content || '').toLowerCase();
+                const embedText = (message.embeds || [])
+                    .map((e) => `${e?.title || ''}\n${e?.description || ''}`)
+                    .join('\n')
+                    .toLowerCase();
+
+                const looksLikeBumpConfirm = content.includes('bump done') || embedText.includes('bump done');
+                if (looksLikeBumpConfirm) {
+                    const guildId = message.guild.id;
+                    const nextBump = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+                    await Bump.findOneAndUpdate(
+                        { guildId },
+                        { $set: { nextBumpTime: nextBump, reminded: false } },
+                        { upsert: true, new: true }
+                    ).catch(() => { });
+
+                    const prev = bumpReminderTimeoutByGuild.get(guildId);
+                    if (prev) {
+                        clearTimeout(prev);
+                        bumpReminderTimeoutByGuild.delete(guildId);
+                    }
+
+                    const timeout = setTimeout(async () => {
+                        try {
+                            const ch = await client.channels.fetch(BUMP_REMINDER_CHANNEL_ID).catch(() => null);
+                            if (!ch || !ch.isTextBased?.()) return;
+
+                            const embed = new EmbedBuilder()
+                                .setColor('#000000')
+                                .setDescription('**bump is ready !**\ntype \\/bump` to bump the server` ');
+
+                            await ch.send({
+                                content: `<@&${BUMP_NOTIFY_ROLE_ID}>`,
+                                embeds: [embed],
+                                allowedMentions: { roles: [BUMP_NOTIFY_ROLE_ID] }
+                            }).catch(() => { });
+
+                            await Bump.findOneAndUpdate(
+                                { guildId },
+                                { $set: { reminded: true } }
+                            ).catch(() => { });
+                        } finally {
+                            bumpReminderTimeoutByGuild.delete(guildId);
+                        }
+                    }, 2 * 60 * 60 * 1000);
+
+                    bumpReminderTimeoutByGuild.set(guildId, timeout);
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
 
         // --- Auto-delete Discord invites (except in ticket channels/threads) ---
         try {
