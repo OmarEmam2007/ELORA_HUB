@@ -23,7 +23,7 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true }).catch(() => { });
 
-        const bannerName = 'improve.png';
+        const bannerName = 'nopo.png';
         const bannerCandidates = [
             path.join(__dirname, '../../assets', bannerName),
             path.join(__dirname, '../../../assets', bannerName),
