@@ -4,6 +4,56 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
+        // --- Disboard bump reminder scheduler (DB-backed; survives restarts) ---
+        try {
+            const { EmbedBuilder } = require('discord.js');
+            const Bump = require('../../models/Bump');
+
+            const BUMP_NOTIFY_ROLE_ID = '1494109618413113415';
+            const BUMP_REMINDER_CHANNEL_ID = '1461760293968285879';
+
+            const tick = async () => {
+                const now = new Date();
+                let due = [];
+                try {
+                    due = await Bump.find({ nextBumpTime: { $lte: now }, reminded: false }).lean().catch(() => []);
+                } catch (_) {
+                    due = [];
+                }
+
+                if (!due.length) return;
+
+                const ch = await client.channels.fetch(BUMP_REMINDER_CHANNEL_ID).catch(() => null);
+                if (!ch || !ch.isTextBased?.()) return;
+
+                const embed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setDescription('**bump is ready !**\ntype \\/bump` to bump the server` ');
+
+                for (const d of due) {
+                    try {
+                        await ch.send({
+                            content: `<@&${BUMP_NOTIFY_ROLE_ID}>`,
+                            embeds: [embed],
+                            allowedMentions: { roles: [BUMP_NOTIFY_ROLE_ID] }
+                        }).catch(() => { });
+
+                        await Bump.findOneAndUpdate(
+                            { guildId: d.guildId },
+                            { $set: { reminded: true } }
+                        ).catch(() => { });
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+            };
+
+            setTimeout(() => tick().catch(() => { }), 10_000);
+            setInterval(() => tick().catch(() => { }), 60_000);
+        } catch (_) {
+            // ignore
+        }
+
         // --- AFK Auto Mute Bootstrap (best-effort) ---
         try {
             const User = require('../../models/User');

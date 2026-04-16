@@ -17,7 +17,6 @@ const socialVideoCooldownByUser = new Map();
 const DISBOARD_BOT_ID = '302050872383242240';
 const BUMP_NOTIFY_ROLE_ID = '1494109618413113415';
 const BUMP_REMINDER_CHANNEL_ID = '1461760293968285879';
-const bumpReminderTimeoutByGuild = new Map();
 
 function randomIncognitoName() {
     const prefixes = ['User', 'Ghost', 'Shadow', 'Anon', 'Wisp', 'Null'];
@@ -95,38 +94,6 @@ module.exports = {
                         { $set: { nextBumpTime: nextBump, reminded: false } },
                         { upsert: true, new: true }
                     ).catch(() => { });
-
-                    const prev = bumpReminderTimeoutByGuild.get(guildId);
-                    if (prev) {
-                        clearTimeout(prev);
-                        bumpReminderTimeoutByGuild.delete(guildId);
-                    }
-
-                    const timeout = setTimeout(async () => {
-                        try {
-                            const ch = await client.channels.fetch(BUMP_REMINDER_CHANNEL_ID).catch(() => null);
-                            if (!ch || !ch.isTextBased?.()) return;
-
-                            const embed = new EmbedBuilder()
-                                .setColor('#000000')
-                                .setDescription('**bump is ready !**\ntype \\/bump` to bump the server` ');
-
-                            await ch.send({
-                                content: `<@&${BUMP_NOTIFY_ROLE_ID}>`,
-                                embeds: [embed],
-                                allowedMentions: { roles: [BUMP_NOTIFY_ROLE_ID] }
-                            }).catch(() => { });
-
-                            await Bump.findOneAndUpdate(
-                                { guildId },
-                                { $set: { reminded: true } }
-                            ).catch(() => { });
-                        } finally {
-                            bumpReminderTimeoutByGuild.delete(guildId);
-                        }
-                    }, 2 * 60 * 60 * 1000);
-
-                    bumpReminderTimeoutByGuild.set(guildId, timeout);
                 }
             }
         } catch (_) {
