@@ -58,12 +58,25 @@ module.exports = {
             if (isDisboard) {
                 const content = String(message.content || '').toLowerCase();
                 const embedText = (message.embeds || [])
-                    .map((e) => `${e?.title || ''}\n${e?.description || ''}`)
+                    .map((e) => {
+                        const parts = [];
+                        if (e?.title) parts.push(e.title);
+                        if (e?.description) parts.push(e.description);
+                        if (e?.author?.name) parts.push(e.author.name);
+                        if (e?.footer?.text) parts.push(e.footer.text);
+                        const fields = Array.isArray(e?.fields) ? e.fields : [];
+                        for (const f of fields) {
+                            if (f?.name) parts.push(f.name);
+                            if (f?.value) parts.push(f.value);
+                        }
+                        return parts.join('\n');
+                    })
                     .join('\n')
                     .toLowerCase();
 
                 const looksLikeBumpConfirm = content.includes('bump done') || embedText.includes('bump done');
                 if (looksLikeBumpConfirm) {
+                    console.log(`[BUMP] Disboard bump confirmed. guild=${message.guild.id} srcChannel=${message.channelId}`);
                     const guildId = message.guild.id;
                     const nextBump = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
@@ -83,7 +96,11 @@ module.exports = {
                                 content: bumperId ? `<@${bumperId}>` : undefined,
                                 embeds: [thanksEmbed],
                                 allowedMentions: bumperId ? { users: [bumperId] } : { parse: [] }
-                            }).catch(() => { });
+                            }).catch((e) => {
+                                console.error(`[BUMP] Failed to send thanks message in channel=${BUMP_REMINDER_CHANNEL_ID}`, e);
+                            });
+                        } else {
+                            console.error(`[BUMP] Reminder channel not found or not text-based: ${BUMP_REMINDER_CHANNEL_ID}`);
                         }
                     } catch (_) {
                         // ignore

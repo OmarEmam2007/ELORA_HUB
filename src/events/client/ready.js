@@ -23,8 +23,13 @@ module.exports = {
 
                 if (!due.length) return;
 
+                console.log(`[BUMP] Scheduler: ${due.length} reminder(s) due.`);
+
                 const ch = await client.channels.fetch(BUMP_REMINDER_CHANNEL_ID).catch(() => null);
-                if (!ch || !ch.isTextBased?.()) return;
+                if (!ch || !ch.isTextBased?.()) {
+                    console.error(`[BUMP] Scheduler: reminder channel not found or not text-based: ${BUMP_REMINDER_CHANNEL_ID}`);
+                    return;
+                }
 
                 const embed = new EmbedBuilder()
                     .setColor('#000000')
@@ -36,7 +41,9 @@ module.exports = {
                             content: `<@&${BUMP_NOTIFY_ROLE_ID}>`,
                             embeds: [embed],
                             allowedMentions: { roles: [BUMP_NOTIFY_ROLE_ID] }
-                        }).catch(() => { });
+                        }).catch((e) => {
+                            console.error(`[BUMP] Scheduler: failed to send reminder. guild=${d.guildId} channel=${BUMP_REMINDER_CHANNEL_ID}`, e);
+                        });
 
                         await Bump.findOneAndUpdate(
                             { guildId: d.guildId },

@@ -77,7 +77,7 @@ module.exports = {
             .setPlaceholder(`✦ ${toSmallCaps('BUMP NOTIFICATIONS')}`)
             .addOptions(
                 { label: 'Notify me', value: 'add_bump', emoji: { id: '1487391271759646750' } },
-                { label: 'No thanks', value: 'ignore_bump', emoji: { id: '1487391271759646750' } }
+                { label: '  No thanks', value: 'ignore_bump', emoji: { id: '1487391271759646750' } }
             );
 
         const row1 = new ActionRowBuilder().addComponents(ageMenu);
