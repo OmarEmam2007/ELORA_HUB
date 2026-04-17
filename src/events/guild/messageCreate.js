@@ -50,7 +50,10 @@ async function getOrCreateIncognitoWebhook(channel, client) {
 module.exports = {
     name: 'messageCreate',
     async execute(message, client) {
-        if (((message.author?.bot && message.author?.id !== DISBOARD_BOT_ID) || message.webhookId || !message.guild)) return;
+        if (!message.guild) return;
+
+        const isDisboardMessage = message.author?.id === DISBOARD_BOT_ID;
+        if (!isDisboardMessage && (message.author?.bot || message.webhookId)) return;
 
         // --- Disboard bump reminder (2-hour timer) ---
         try {
