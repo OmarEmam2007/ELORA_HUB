@@ -74,6 +74,13 @@ module.exports = {
                     .join('\n')
                     .toLowerCase();
 
+                try {
+                    const preview = (embedText || content || '').replace(/\s+/g, ' ').slice(0, 160);
+                    console.log(`[BUMP] DISBOARD msg received. guild=${message.guild.id} channel=${message.channelId} hasEmbeds=${(message.embeds || []).length} preview=${JSON.stringify(preview)}`);
+                } catch (_) {
+                    // ignore
+                }
+
                 const looksLikeBumpConfirm = content.includes('bump done') || embedText.includes('bump done');
                 if (looksLikeBumpConfirm) {
                     console.log(`[BUMP] Disboard bump confirmed. guild=${message.guild.id} srcChannel=${message.channelId}`);
