@@ -10,6 +10,15 @@ module.exports = {
         try {
             if (member.user?.bot) return;
 
+            try {
+                const roleId = client?.config?.astrayRoleId;
+                if (roleId && !member.roles.cache.has(roleId)) {
+                    await member.roles.add(roleId, 'Auto verification on join').catch(() => { });
+                }
+            } catch (_) {
+                // ignore
+            }
+
             const toSmallCaps = (input) => {
                 const map = {
                     a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
