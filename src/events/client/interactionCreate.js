@@ -445,7 +445,9 @@ module.exports = {
                 return null;
             }
 
-            const me = ticketChannel?.guild?.members?.me;
+            const me = ticketChannel?.guild
+                ? await ticketChannel.guild.members.fetchMe().catch(() => null)
+                : null;
             const perms = me && adminChannel.permissionsFor ? adminChannel.permissionsFor(me) : null;
             const missing = [];
             if (perms) {
@@ -453,6 +455,11 @@ module.exports = {
                 if (!perms.has(PermissionFlagsBits.SendMessages)) missing.push('SendMessages');
                 if (!perms.has(PermissionFlagsBits.EmbedLinks)) missing.push('EmbedLinks');
                 if (!perms.has(PermissionFlagsBits.AttachFiles)) missing.push('AttachFiles');
+            }
+
+            if (missing.includes('ViewChannel') || missing.includes('SendMessages')) {
+                console.error('[GirlsVerification] Cannot post in admin vault due to permissions', adminVaultId, missing.join(', '));
+                return null;
             }
 
             const embed = new EmbedBuilder()
@@ -529,7 +536,7 @@ module.exports = {
                 const att = Array.from(m.attachments?.values?.() || []).find(isAudioAttachment);
                 if (!att) return;
 
-                try { await m.delete().catch(() => { }); } catch (_) { }
+                // keep original message to avoid attachment link edge cases
 
                 const lang = ticketLanguageByChannel.get(ticketChannel.id) || 'en';
                 const ack = await ticketChannel.send({
@@ -573,6 +580,10 @@ module.exports = {
                     filesOverride: filesPayload,
                     fallbackUrl: att.url
                 });
+
+                if (sent?.id) {
+                    try { await m.delete().catch(() => { }); } catch (_) { }
+                }
 
                 if (!sent?.id && usedLocalFiles) {
                     await sendGirlsVerificationToAdminVault({
