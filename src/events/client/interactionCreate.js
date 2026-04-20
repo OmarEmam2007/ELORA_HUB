@@ -1,4 +1,16 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, StringSelectMenuBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const http = require('http');
+const https = require('https');
+const { spawn } = require('child_process');
+let ffmpegPath = null;
+try {
+    ffmpegPath = require('ffmpeg-static');
+} catch (_) {
+    ffmpegPath = null;
+}
 const ModSettings = require('../../models/ModSettings');
 const ModLog = require('../../models/ModLog');
 const GuildSecurityConfig = require('../../models/GuildSecurityConfig');
@@ -234,6 +246,61 @@ module.exports = {
         const getDynEmoji = () => `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
         const genGirlsCode = () => `ELORA-${Math.floor(100 + Math.random() * 900)}`;
 
+        const downloadUrlToFile = async (url, outPath) => {
+            const u = new URL(url);
+            const lib = u.protocol === 'http:' ? http : https;
+
+            await new Promise((resolve, reject) => {
+                const req = lib.get(u, (res) => {
+                    if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                        res.resume();
+                        downloadUrlToFile(res.headers.location, outPath).then(resolve).catch(reject);
+                        return;
+                    }
+
+                    if (res.statusCode !== 200) {
+                        res.resume();
+                        reject(new Error(`Failed to download audio. Status: ${res.statusCode}`));
+                        return;
+                    }
+
+                    const file = fs.createWriteStream(outPath);
+                    res.pipe(file);
+                    file.on('finish', () => file.close(resolve));
+                    file.on('error', (err) => {
+                        try { file.close(() => { }); } catch (_) { }
+                        reject(err);
+                    });
+                });
+
+                req.on('error', reject);
+                req.setTimeout(20_000, () => {
+                    try { req.destroy(new Error('Download timeout')); } catch (_) { }
+                });
+            });
+
+            return outPath;
+        };
+
+        const tryConvertToMp3 = async (inputPath, outputPath) => {
+            await new Promise((resolve, reject) => {
+                const args = ['-y', '-i', inputPath, '-vn', '-ar', '48000', '-ac', '2', '-b:a', '128k', outputPath];
+                const bin = ffmpegPath || 'ffmpeg';
+                const p = spawn(bin, args, { windowsHide: true });
+
+                let stderr = '';
+                p.stderr?.on?.('data', (d) => { stderr += String(d); });
+
+                p.on('error', reject);
+                p.on('close', (code) => {
+                    if (code === 0) return resolve();
+                    reject(new Error(`ffmpeg exited with code ${code}. ${stderr.slice(0, 500)}`));
+                });
+            });
+
+            return outputPath;
+        };
+
         const isAudioAttachment = (att) => {
             const ct = String(att?.contentType || '').toLowerCase();
             const name = String(att?.name || '').toLowerCase();
@@ -389,9 +456,13 @@ module.exports = {
                 new ButtonBuilder().setCustomId('girls_verify_retake').setLabel('Retake Voice').setStyle(ButtonStyle.Secondary)
             );
 
+            const files = arguments?.[0]?.filesOverride
+                ? arguments[0].filesOverride
+                : (fileUrl ? [{ attachment: fileUrl, name: fileName || 'file' }] : []);
+
             const sent = await adminChannel.send({
                 embeds: [embed],
-                files: fileUrl ? [{ attachment: fileUrl, name: fileName || 'file' }] : [],
+                files,
                 components: [row]
             }).catch(() => null);
 
@@ -440,16 +511,37 @@ module.exports = {
                 }).catch(() => null);
                 if (ack?.deletable) setTimeout(() => ack.delete().catch(() => { }), 3000);
 
-                const voiceName = String(att.name || 'voice.ogg');
+                const tmpBase = path.join(os.tmpdir(), `elora_gv_${ticketChannel.id}_${Date.now()}`);
+                const inputName = String(att.name || 'voice.ogg');
+                const inputExt = path.extname(inputName) || '.ogg';
+                const inputPath = `${tmpBase}${inputExt}`;
+                const outputPath = `${tmpBase}.mp3`;
+
+                let filesPayload = [];
+                let finalName = 'voice.mp3';
+
+                try {
+                    await downloadUrlToFile(att.url, inputPath);
+                    await tryConvertToMp3(inputPath, outputPath);
+                    filesPayload = [{ attachment: outputPath, name: finalName }];
+                } catch (_) {
+                    finalName = inputName;
+                    filesPayload = [{ attachment: att.url, name: finalName }];
+                }
+
                 const sent = await sendGirlsVerificationToAdminVault({
                     adminVaultId,
                     ticketChannel,
                     user: m.author,
                     code,
-                    fileUrl: att.url,
-                    fileName: voiceName,
-                    title: 'Girls Verification - Voice Note'
+                    fileUrl: null,
+                    fileName: null,
+                    title: 'Girls Verification - Voice Note',
+                    filesOverride: filesPayload
                 });
+
+                try { fs.unlinkSync(inputPath); } catch (_) { }
+                try { fs.unlinkSync(outputPath); } catch (_) { }
 
                 if (sent?.id) {
                     const latest = girlsVerificationRequests.get(ticketChannel.id) || {};
