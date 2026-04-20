@@ -2059,10 +2059,24 @@ module.exports = {
                     return safeReply({ content: '✖ **This interaction can only be used in a server.**', ephemeral: true });
                 }
 
+                if (!interaction.channel) {
+                    return safeReply({ content: '✖ **Invalid channel.**', ephemeral: true });
+                }
+
+                if (!canUseTicketControls(interaction)) {
+                    return safeReply({ content: '❌ Admin only.', ephemeral: true });
+                }
+
+                const topic = String(interaction.channel?.topic || '');
+                const openerId = parseTicketOwnerFromTopic(topic);
+                if (!openerId) {
+                    return safeReply({ content: '❌ Cannot detect ticket owner.', ephemeral: true });
+                }
+
                 const VERIFIED_GIRL_ROLE_ID = '1480220142213267476';
-                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-                if (!member) {
-                    return safeReply({ content: '✖ **Could not resolve your member record.**', ephemeral: true });
+                const target = await interaction.guild.members.fetch(openerId).catch(() => null);
+                if (!target) {
+                    return safeReply({ content: '❌ Ticket owner not found in this server.', ephemeral: true });
                 }
 
                 const me = await interaction.guild.members.fetchMe().catch(() => null);
@@ -2070,8 +2084,8 @@ module.exports = {
                     return safeReply({ content: '✖ **Missing bot permission: Manage Roles.**', ephemeral: true });
                 }
 
-                if (member.roles.cache.has(VERIFIED_GIRL_ROLE_ID)) {
-                    return safeReply({ content: '✅ **You are already verified.**', ephemeral: true });
+                if (target.roles.cache.has(VERIFIED_GIRL_ROLE_ID)) {
+                    return safeReply({ content: '✅ **Ticket owner is already verified.**', ephemeral: true });
                 }
 
                 const role = interaction.guild.roles.cache.get(VERIFIED_GIRL_ROLE_ID) || await interaction.guild.roles.fetch(VERIFIED_GIRL_ROLE_ID).catch(() => null);
@@ -2083,8 +2097,8 @@ module.exports = {
                     return safeReply({ content: '✖ **I cannot assign that role due to role hierarchy.**', ephemeral: true });
                 }
 
-                await member.roles.add(role, 'Ticket Control: Get Verified').catch(() => null);
-                return safeReply({ content: '✅ **Verified role granted.**', ephemeral: true });
+                await target.roles.add(role, 'Ticket Control: Get Verified').catch(() => null);
+                return safeReply({ content: '✅ **Verified role granted to ticket owner.**', ephemeral: true });
             }
 
             if (interaction.customId === 'add_verified_role') {
