@@ -435,9 +435,25 @@ module.exports = {
             }
         };
 
-        const sendGirlsVerificationToAdminVault = async ({ adminVaultId, ticketChannel, user, code, fileUrl, fileName, title }) => {
-            const adminChannel = await client.channels.fetch(adminVaultId).catch(() => null);
-            if (!adminChannel || !adminChannel.isTextBased?.()) return null;
+        const sendGirlsVerificationToAdminVault = async ({ adminVaultId, ticketChannel, user, code, fileUrl, fileName, title, fallbackUrl }) => {
+            const adminChannel = await client.channels.fetch(adminVaultId).catch((e) => {
+                console.error('[GirlsVerification] Failed to fetch admin vault channel', adminVaultId, e);
+                return null;
+            });
+            if (!adminChannel || !adminChannel.isTextBased?.()) {
+                console.error('[GirlsVerification] Admin vault channel not found or not text-based', adminVaultId);
+                return null;
+            }
+
+            const me = ticketChannel?.guild?.members?.me;
+            const perms = me && adminChannel.permissionsFor ? adminChannel.permissionsFor(me) : null;
+            const missing = [];
+            if (perms) {
+                if (!perms.has(PermissionFlagsBits.ViewChannel)) missing.push('ViewChannel');
+                if (!perms.has(PermissionFlagsBits.SendMessages)) missing.push('SendMessages');
+                if (!perms.has(PermissionFlagsBits.EmbedLinks)) missing.push('EmbedLinks');
+                if (!perms.has(PermissionFlagsBits.AttachFiles)) missing.push('AttachFiles');
+            }
 
             const embed = new EmbedBuilder()
                 .setTitle(title || 'Girls Verification')
@@ -460,11 +476,24 @@ module.exports = {
                 ? arguments[0].filesOverride
                 : (fileUrl ? [{ attachment: fileUrl, name: fileName || 'file' }] : []);
 
+            const canAttach = !perms || perms.has(PermissionFlagsBits.AttachFiles);
+            const content = (!canAttach && (fallbackUrl || fileUrl))
+                ? `File: ${fallbackUrl || fileUrl}`
+                : null;
+
+            if (missing.length) {
+                console.error('[GirlsVerification] Missing permissions in admin vault', adminVaultId, missing.join(', '));
+            }
+
             const sent = await adminChannel.send({
+                content,
                 embeds: [embed],
-                files,
+                files: canAttach ? files : [],
                 components: [row]
-            }).catch(() => null);
+            }).catch((e) => {
+                console.error('[GirlsVerification] Failed to send to admin vault', adminVaultId, e);
+                return null;
+            });
 
             if (sent?.id) {
                 girlsVerificationAdminIndex.set(sent.id, ticketChannel.id);
@@ -541,7 +570,8 @@ module.exports = {
                     fileUrl: null,
                     fileName: null,
                     title: 'Girls Verification - Voice Note',
-                    filesOverride: filesPayload
+                    filesOverride: filesPayload,
+                    fallbackUrl: att.url
                 });
 
                 if (!sent?.id && usedLocalFiles) {
@@ -552,7 +582,8 @@ module.exports = {
                         code,
                         fileUrl: att.url,
                         fileName: inputName,
-                        title: 'Girls Verification - Voice Note'
+                        title: 'Girls Verification - Voice Note',
+                        fallbackUrl: att.url
                     });
                 }
 
