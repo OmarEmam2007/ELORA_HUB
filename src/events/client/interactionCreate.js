@@ -519,11 +519,15 @@ module.exports = {
 
                 let filesPayload = [];
                 let finalName = 'voice.mp3';
+                let usedLocalFiles = false;
 
                 try {
                     await downloadUrlToFile(att.url, inputPath);
                     await tryConvertToMp3(inputPath, outputPath);
+                    const st = fs.statSync(outputPath);
+                    if (!st?.size) throw new Error('Empty MP3 output');
                     filesPayload = [{ attachment: outputPath, name: finalName }];
+                    usedLocalFiles = true;
                 } catch (_) {
                     finalName = inputName;
                     filesPayload = [{ attachment: att.url, name: finalName }];
@@ -540,8 +544,24 @@ module.exports = {
                     filesOverride: filesPayload
                 });
 
-                try { fs.unlinkSync(inputPath); } catch (_) { }
-                try { fs.unlinkSync(outputPath); } catch (_) { }
+                if (!sent?.id && usedLocalFiles) {
+                    await sendGirlsVerificationToAdminVault({
+                        adminVaultId,
+                        ticketChannel,
+                        user: m.author,
+                        code,
+                        fileUrl: att.url,
+                        fileName: inputName,
+                        title: 'Girls Verification - Voice Note'
+                    });
+                }
+
+                if (usedLocalFiles) {
+                    setTimeout(() => {
+                        try { fs.unlinkSync(inputPath); } catch (_) { }
+                        try { fs.unlinkSync(outputPath); } catch (_) { }
+                    }, 60_000);
+                }
 
                 if (sent?.id) {
                     const latest = girlsVerificationRequests.get(ticketChannel.id) || {};
