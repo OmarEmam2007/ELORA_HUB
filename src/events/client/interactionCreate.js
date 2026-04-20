@@ -410,7 +410,14 @@ module.exports = {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-            return { embed, rows: [row1] };
+            const row2 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('ticket_ctrl_get_verified')
+                    .setLabel('Get Verified')
+                    .setStyle(ButtonStyle.Success)
+            );
+
+            return { embed, rows: [row1, row2] };
         };
 
         const sendTicketControlPanel = async (channel) => {
@@ -581,9 +588,7 @@ module.exports = {
                     fallbackUrl: att.url
                 });
 
-                if (sent?.id) {
-                    try { await m.delete().catch(() => { }); } catch (_) { }
-                }
+                // keep voice message in chat as requested
 
                 if (!sent?.id && usedLocalFiles) {
                     await sendGirlsVerificationToAdminVault({
@@ -783,8 +788,8 @@ module.exports = {
 
                 await interaction.channel.send({
                     content: lang === 'ar'
-                        ? `<@${interaction.user.id}> ${emoji} ${boldArabic('مرحبًا! لتوثيق هويتك، يُرجى إرسال ملاحظة صوتية فقط تقولين فيها بالنص:')}\n${boldArabic(`\"أنا ${dn} ورمز التوثيق الخاص بي هو ${code}\".`)}\n${boldArabic('(سيتم إخفاء الملاحظة الصوتية فورًا حفاظًا على خصوصيتك.)')}`
-                        : `<@${interaction.user.id}> ${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${dn} and my verification code is ${code}\".**\n**(Your voice note will be hidden immediately for your privacy).**`,
+                        ? `<@${interaction.user.id}> ${emoji} ${boldArabic('مرحبًا! لتوثيق هويتك، يُرجى إرسال ملاحظة صوتية فقط تقولين فيها بالنص:')}\n${boldArabic(`\"أنا ${dn} ورمز التوثيق الخاص بي هو ${code}\".`)}`
+                        : `<@${interaction.user.id}> ${emoji} **Welcome ${interaction.user}! To verify your identity, please send ONLY a Voice Note saying exactly:**\n**\"I am ${dn} and my verification code is ${code}\".**`,
                     allowedMentions: { parse: ['users'] }
                 }).catch(() => { });
 
@@ -2047,6 +2052,39 @@ module.exports = {
                     await safeEphemeralAck('✅ **Unlocked.** *(Only you can see this)*');
                     return;
                 }
+            }
+
+            if (interaction.customId === 'ticket_ctrl_get_verified') {
+                if (!interaction.guild) {
+                    return safeReply({ content: '✖ **This interaction can only be used in a server.**', ephemeral: true });
+                }
+
+                const VERIFIED_GIRL_ROLE_ID = '1480220142213267476';
+                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                if (!member) {
+                    return safeReply({ content: '✖ **Could not resolve your member record.**', ephemeral: true });
+                }
+
+                const me = await interaction.guild.members.fetchMe().catch(() => null);
+                if (!me?.permissions?.has(PermissionFlagsBits.ManageRoles)) {
+                    return safeReply({ content: '✖ **Missing bot permission: Manage Roles.**', ephemeral: true });
+                }
+
+                if (member.roles.cache.has(VERIFIED_GIRL_ROLE_ID)) {
+                    return safeReply({ content: '✅ **You are already verified.**', ephemeral: true });
+                }
+
+                const role = interaction.guild.roles.cache.get(VERIFIED_GIRL_ROLE_ID) || await interaction.guild.roles.fetch(VERIFIED_GIRL_ROLE_ID).catch(() => null);
+                if (!role) {
+                    return safeReply({ content: '✖ **Verified role not found.**', ephemeral: true });
+                }
+
+                if (me.roles.highest?.position <= role.position) {
+                    return safeReply({ content: '✖ **I cannot assign that role due to role hierarchy.**', ephemeral: true });
+                }
+
+                await member.roles.add(role, 'Ticket Control: Get Verified').catch(() => null);
+                return safeReply({ content: '✅ **Verified role granted.**', ephemeral: true });
             }
 
             if (interaction.customId === 'add_verified_role') {
