@@ -719,7 +719,16 @@ module.exports = {
                 }).catch(() => { });
 
                 await ticketChannel.send({
-                    content: `⸇  ．  𝐄 𝐋 𝐎 𝐑 𝐀 ．  ⸈\n\n                                                        𑣲\n                                                   ˙  ．．  ˙\n\n                         ✦    ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.    ✦\n\n\n                         𑣲  𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲𑣲𑣲  .  𑣲𑣲𑣲𑣲\n\n⟡  [｡ ₊°༺『𝐄𝐋𝐎 𝐑 𝐀』༻°₊ ｡](https://discord.gg/bNC2PCjpQZ)\n[⟡](https://media.discordapp.net/attachments/1479971970966622452/1490332285071786044/elora.png?ex=69d3ab99&is=69d25a19&hm=c18e4685b1346d5e321d1de7c51ca724d2364cdcf17d64e1b9d1acd35104ee3e&=&format=webp&quality=lossless&width=1860&height=759)   ||@everyone|| ||@here ||` ,
+                    content: `⠀
+　　　　　⸇ ． 𝐄 𝐋 𝐎 𝐑 𝐀 ． ⸈
+
+　　　✦　ᴡᴇ ᴅᴏɴ'ᴛ ᴄʜᴀsᴇ, ᴡᴇ ᴀᴛᴛʀᴀᴄᴛ.　✦
+
+　　　　　　　　 𑣲 ． ˙ ． 𑣲
+
+　　　　　[ ✦ 𝐄 𝐍 𝐓 𝐄 𝐑 ✦ ](https://discord.gg/bNC2PCjpQZ)
+[⠀](https://media.discordapp.net/attachments/1470116485627379806/1494000633215189213/nopo.png?ex=69e10404&is=69dfb284&hm=2b6b52a4ea2fc74309a93a782ad932d0387cfb4eefe8fc7f3ece9607d6e8daea&=&format=webp&quality=lossless&width=1526&height=859)
+ ||@everyone||` ,
                     allowedMentions: { parse: [] }
                 }).catch(() => { });
 
