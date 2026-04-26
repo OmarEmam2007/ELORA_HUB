@@ -157,13 +157,142 @@ module.exports = {
 
                     ctx.drawImage(bg, 0, 0, width, height);
 
+                    const roundRect = (x, y, w, h, r) => {
+                        const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+                        ctx.beginPath();
+                        ctx.moveTo(x + radius, y);
+                        ctx.arcTo(x + w, y, x + w, y + h, radius);
+                        ctx.arcTo(x + w, y + h, x, y + h, radius);
+                        ctx.arcTo(x, y + h, x, y, radius);
+                        ctx.arcTo(x, y, x + w, y, radius);
+                        ctx.closePath();
+                    };
+
+                    const fitText = (text, maxWidth, startSize, minSize) => {
+                        let size = startSize;
+                        while (size > minSize) {
+                            ctx.font = `900 ${size}px Sans`;
+                            const m = ctx.measureText(text);
+                            if (m.width <= maxWidth) break;
+                            size -= 2;
+                        }
+                        return size;
+                    };
+
+                    const ellipsis = (s, maxLen) => {
+                        const str = String(s || '').trim();
+                        if (!maxLen || str.length <= maxLen) return str;
+                        return `${str.slice(0, Math.max(0, maxLen - 1))}…`;
+                    };
+
+                    const drawSpacedText = (text, x, y, spacing, strokeFirst = true) => {
+                        const chars = String(text || '').split('');
+                        const widths = chars.map((ch) => ctx.measureText(ch).width);
+                        const total = widths.reduce((a, b) => a + b, 0) + spacing * Math.max(0, chars.length - 1);
+                        let cursor = x - total / 2;
+
+                        for (let i = 0; i < chars.length; i++) {
+                            const ch = chars[i];
+                            const w = widths[i];
+                            const cx = cursor + w / 2;
+                            if (strokeFirst) ctx.strokeText(ch, cx, y);
+                            ctx.fillText(ch, cx, y);
+                            cursor += w + spacing;
+                        }
+                    };
+
+                    const drawPill = ({ x, y, text, paddingX = 16, paddingY = 10, radius = 16 }) => {
+                        const t = String(text || '').trim();
+                        const m = ctx.measureText(t);
+                        const w = Math.ceil(m.width + paddingX * 2);
+                        const h = Math.ceil((m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) + paddingY * 2);
+
+                        ctx.save();
+                        roundRect(x, y, w, h, radius);
+                        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                        ctx.fill();
+                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                        ctx.stroke();
+                        ctx.restore();
+
+                        ctx.save();
+                        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(t, x + paddingX, y + h / 2);
+                        ctx.restore();
+
+                        return { w, h };
+                    };
+
+                    // Cinematic overlays to ensure readability + premium look
+                    const leftFade = ctx.createLinearGradient(0, 0, Math.floor(width * 0.65), 0);
+                    leftFade.addColorStop(0, 'rgba(0,0,0,0.72)');
+                    leftFade.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+                    leftFade.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = leftFade;
+                    ctx.fillRect(0, 0, width, height);
+
+                    const topFade = ctx.createLinearGradient(0, 0, 0, Math.floor(height * 0.35));
+                    topFade.addColorStop(0, 'rgba(0,0,0,0.65)');
+                    topFade.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = topFade;
+                    ctx.fillRect(0, 0, width, height);
+
+                    // Vignette (focus center-left)
+                    const vignette = ctx.createRadialGradient(
+                        Math.floor(width * 0.33),
+                        Math.floor(height * 0.55),
+                        Math.floor(Math.min(width, height) * 0.25),
+                        Math.floor(width * 0.33),
+                        Math.floor(height * 0.55),
+                        Math.floor(Math.min(width, height) * 0.78)
+                    );
+                    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+                    vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+                    ctx.fillStyle = vignette;
+                    ctx.fillRect(0, 0, width, height);
+
+                    // Subtle grain
+                    try {
+                        const img = ctx.getImageData(0, 0, width, height);
+                        const d = img.data;
+                        const strength = 10;
+                        for (let i = 0; i < d.length; i += 4) {
+                            const n = (Math.random() * 2 - 1) * strength;
+                            d[i] = Math.max(0, Math.min(255, d[i] + n));
+                            d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+                            d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+                        }
+                        ctx.putImageData(img, 0, 0);
+                    } catch (_) {
+                        // ignore grain failures
+                    }
+
                     // --- avatar ---
                     const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
                     const av = await Canvas.loadImage(avatarUrl);
 
-                    const centerX = Math.floor(width / 2);
-                    const centerY = Math.floor(height / 2) + Math.floor(height * 0.05);
-                    const radius = Math.floor(Math.min(width, height) * 0.14);
+                    // Position tuned for this banner: keep the right-side character visible.
+                    const centerX = Math.floor(width * 0.34);
+                    const centerY = Math.floor(height * 0.58);
+                    const radius = Math.floor(Math.min(width, height) * 0.17);
+
+                    // Glass card behind avatar
+                    const cardW = Math.floor(radius * 3.0);
+                    const cardH = Math.floor(radius * 2.35);
+                    const cardX = Math.floor(centerX - cardW / 2);
+                    const cardY = Math.floor(centerY - cardH / 2);
+
+                    ctx.save();
+                    roundRect(cardX, cardY, cardW, cardH, Math.floor(radius * 0.35));
+                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                    ctx.stroke();
+                    ctx.restore();
 
                     // soft shadow
                     ctx.save();
@@ -186,13 +315,46 @@ module.exports = {
                     ctx.drawImage(av, centerX - radius, centerY - radius, radius * 2, radius * 2);
                     ctx.restore();
 
-                    // ring
+                    // Shine / highlight overlay (adds a premium feel)
                     ctx.save();
                     ctx.beginPath();
-                    ctx.arc(centerX, centerY, radius + 6, 0, Math.PI * 2);
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
                     ctx.closePath();
-                    ctx.lineWidth = 8;
-                    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                    ctx.clip();
+
+                    const shine = ctx.createLinearGradient(
+                        centerX - radius,
+                        centerY - radius,
+                        centerX + radius,
+                        centerY + radius
+                    );
+                    shine.addColorStop(0, 'rgba(255,255,255,0.35)');
+                    shine.addColorStop(0.35, 'rgba(255,255,255,0.10)');
+                    shine.addColorStop(0.7, 'rgba(255,255,255,0.00)');
+                    ctx.fillStyle = shine;
+                    ctx.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
+
+                    // subtle diagonal streak
+                    ctx.globalAlpha = 0.22;
+                    ctx.fillStyle = 'rgba(106,228,255,1)';
+                    ctx.translate(centerX, centerY);
+                    ctx.rotate(-0.45);
+                    ctx.fillRect(-radius * 2, -radius * 0.15, radius * 4, radius * 0.24);
+                    ctx.restore();
+
+                    // ring
+                    ctx.save();
+                    const ringGrad = ctx.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+                    ringGrad.addColorStop(0, 'rgba(106,228,255,0.95)');
+                    ringGrad.addColorStop(0.55, 'rgba(255,255,255,0.85)');
+                    ringGrad.addColorStop(1, 'rgba(106,228,255,0.95)');
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius + 7, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.lineWidth = 10;
+                    ctx.strokeStyle = ringGrad;
+                    ctx.shadowColor = 'rgba(106,228,255,0.35)';
+                    ctx.shadowBlur = 14;
                     ctx.stroke();
                     ctx.restore();
 
@@ -200,17 +362,62 @@ module.exports = {
                     const username = member.user.globalName || member.user.username;
                     const title = `WELCOME ${username}`;
 
-                    const fontSize = Math.floor(Math.min(width, height) * 0.06);
-                    ctx.font = `800 ${fontSize}px Sans`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-                    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-                    ctx.lineWidth = Math.max(2, Math.floor(fontSize * 0.12));
 
-                    const textY = Math.floor(height * 0.18);
-                    ctx.strokeText(title, centerX, textY);
-                    ctx.fillText(title, centerX, textY);
+                    const titleMaxWidth = Math.floor(width * 0.55);
+                    const titleSize = fitText(title.toUpperCase(), titleMaxWidth, Math.floor(height * 0.085), Math.floor(height * 0.05));
+                    ctx.font = `900 ${titleSize}px Sans`;
+
+                    const textY = Math.floor(height * 0.26);
+                    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+                    ctx.shadowBlur = 22;
+                    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+                    ctx.lineWidth = Math.max(3, Math.floor(titleSize * 0.12));
+
+                    // pseudo letter-spacing
+                    const spaced = title.toUpperCase();
+                    const spacing = Math.max(1, Math.floor(titleSize * 0.06));
+                    drawSpacedText(spaced, centerX, textY, spacing, true);
+
+                    // subtitle
+                    const sub = 'WELCOME TO ELORA';
+                    const subSize = Math.floor(titleSize * 0.45);
+                    ctx.shadowBlur = 14;
+                    ctx.font = `700 ${subSize}px Sans`;
+                    ctx.fillStyle = 'rgba(106,228,255,0.92)';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                    ctx.lineWidth = Math.max(2, Math.floor(subSize * 0.12));
+                    ctx.strokeText(sub, centerX, Math.floor(textY + titleSize * 0.75));
+                    ctx.fillText(sub, centerX, Math.floor(textY + titleSize * 0.75));
+
+                    // Badges (premium pills)
+                    ctx.save();
+                    const badgeFont = Math.max(14, Math.floor(height * 0.028));
+                    ctx.font = `800 ${badgeFont}px Sans`;
+                    ctx.shadowColor = 'rgba(0,0,0,0.65)';
+                    ctx.shadowBlur = 14;
+
+                    const topLeftX = Math.floor(width * 0.06);
+                    const topY = Math.floor(height * 0.06);
+                    const b1 = drawPill({ x: topLeftX, y: topY, text: 'NEW MEMBER' });
+
+                    const idShort = String(member.id || '').slice(-6);
+                    drawPill({ x: topLeftX + b1.w + 12, y: topY, text: `ID • ${idShort}` });
+                    ctx.restore();
+
+                    // Info line (Invited by + member count) - minimal and clean
+                    const invitedByClean = ellipsis(String(inviterText || '@DISBOARD').replace(/\s+/g, ' ').trim(), 22);
+                    const infoText = `INVITED BY ${invitedByClean}  •  MEMBER #${guild.memberCount || 0}`;
+                    const infoSize = Math.max(16, Math.floor(subSize * 0.58));
+                    ctx.shadowBlur = 10;
+                    ctx.font = `700 ${infoSize}px Sans`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                    ctx.lineWidth = Math.max(2, Math.floor(infoSize * 0.10));
+                    ctx.strokeText(infoText, centerX, Math.floor(centerY + radius + infoSize * 2.2));
+                    ctx.fillText(infoText, centerX, Math.floor(centerY + radius + infoSize * 2.2));
 
                     const out = canvas.toBuffer('image/png');
                     bannerFile = new AttachmentBuilder(out, { name: bannerName });
