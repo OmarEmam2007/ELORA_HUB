@@ -183,8 +183,8 @@ module.exports = {
 
                     const bg = await Canvas.loadImage(bannerPath);
 
-                    const width = bg.width || 1600;
-                    const height = bg.height || 900;
+                    const width = 1024;
+                    const height = 576;
                     const canvas = Canvas.createCanvas(width, height);
                     const ctx = canvas.getContext('2d');
 
@@ -462,7 +462,7 @@ module.exports = {
 
                     // subtitle
                     const sub = 'WELCOME TO ELORA';
-                    const subSize = Math.floor(titleSize * 0.45);
+                    const subSize = Math.max(18, Math.min(36, Math.floor(titleSize * 0.45)));
                     ctx.shadowBlur = 10;
                     ctx.font = `650 ${subSize}px Inter, Sans`;
                     ctx.fillStyle = 'rgba(255,255,255,0.72)';
@@ -473,7 +473,7 @@ module.exports = {
 
                     // Badges (minimal mono tags)
                     ctx.save();
-                    const badgeFont = Math.max(13, Math.floor(height * 0.026));
+                    const badgeFont = Math.max(13, Math.min(18, Math.floor(height * 0.026)));
                     ctx.font = `700 ${badgeFont}px Inter, Sans`;
                     ctx.shadowColor = 'rgba(0,0,0,0.55)';
                     ctx.shadowBlur = 10;
@@ -498,7 +498,7 @@ module.exports = {
                     // Info line (Invited by + member count) - minimal and clean
                     const invitedByClean = ellipsis(String(inviterText || '@DISBOARD').replace(/\s+/g, ' ').trim(), 22);
                     const infoText = `INVITED BY ${invitedByClean}  •  MEMBER #${guild.memberCount || 0}`;
-                    const infoSize = Math.max(16, Math.floor(subSize * 0.58));
+                    const infoSize = Math.max(16, Math.min(26, Math.floor(subSize * 0.58)));
                     ctx.shadowBlur = 8;
                     ctx.font = `650 ${infoSize}px Inter, Sans`;
                     ctx.fillStyle = 'rgba(255,255,255,0.78)';
