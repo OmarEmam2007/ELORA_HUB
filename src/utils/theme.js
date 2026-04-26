@@ -13,8 +13,8 @@ module.exports = {
 
     // 🖼️ Icons & Assets
     ICONS: {
-        MOON_FULL: 'https://cdn-icons-png.flaticon.com/512/11529/11529141.png', // HD Moon Render
-        MOON_CRESCENT: 'https://cdn-icons-png.flaticon.com/512/3594/3594273.png',
+        MOON_FULL: null,
+        MOON_CRESCENT: null,
         SATELLITE: '🛰️',
         HAMMER: '🔨',
         SHIELD: '🛡️',
@@ -47,7 +47,7 @@ module.exports = {
     // 📝 Standardized Footers
     FOOTER: {
         text: 'Sovereign Nexus • Elora Operations',
-        iconURL: 'https://cdn-icons-png.flaticon.com/512/11529/11529141.png'
+        iconURL: null
     },
 
     makeEmbed(EmbedBuilder, variant = 'PRIMARY') {

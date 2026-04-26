@@ -3,7 +3,11 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    AttachmentBuilder,
 } = require('discord.js');
+
+const path = require('path');
+const fs = require('fs');
 
 const THEME = require('../../utils/theme');
 const { getOrCreateUser } = require('../../services/marriageService');
@@ -145,11 +149,27 @@ module.exports = {
                 `🕯️ This proposal has **no expiration**. Take your time.`
             )
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setImage('https://media.tenor.com/2roX3uxz_68AAAAC/love.gif')
             .setFooter(THEME.FOOTER)
             .setTimestamp();
 
-        const msg = await message.reply({ embeds: [proposalEmbed], components: [proposalRow(proposal._id.toString())] });
+        const bannerName = 'new banner1.png';
+        const bannerCandidates = [
+            path.join(__dirname, '../../../assets', bannerName),
+            path.join(__dirname, '../../assets', bannerName),
+            path.join(process.cwd(), 'assets', bannerName),
+            path.join(process.cwd(), 'src', 'assets', bannerName),
+            path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+        ];
+        const bannerPath = bannerCandidates.find(p => {
+            try { return fs.existsSync(p); } catch (_) { return false; }
+        }) || null;
+        const files = [];
+        if (bannerPath) {
+            files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
+            proposalEmbed.setImage(`attachment://${bannerName}`);
+        }
+
+        const msg = await message.reply({ embeds: [proposalEmbed], components: [proposalRow(proposal._id.toString())], files });
         await MarriageProposal.updateOne({ _id: proposal._id }, { $set: { messageId: msg.id } }).exec().catch(() => { });
     },
 };

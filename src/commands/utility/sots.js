@@ -78,13 +78,10 @@ module.exports = {
 
             const iconUrl = safeIconUrl(guild);
 
-            // Prefer the root assets path the user requested: "./assets/sots_banner.png".
-            // Fallback to "./src/assets/sots_banner.png" if needed.
+            const bannerName = 'new banner1.png';
             const bannerCandidates = [
-                path.join(process.cwd(), 'assets', 'sots_banner.png'),
-                path.join(process.cwd(), 'assets', 'sots_banner.gif'),
-                path.join(process.cwd(), 'src', 'assets', 'sots_banner.png'),
-                path.join(process.cwd(), 'src', 'assets', 'sots_banner.gif')
+                path.join(process.cwd(), 'assets', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName)
             ];
 
             let bannerAttachment = null;

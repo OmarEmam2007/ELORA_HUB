@@ -184,7 +184,7 @@ function buildCreateGiveawayModal() {
 
 function buildGiveawayEmbed(active) {
     const endUnix = Math.floor(active.endAtMs / 1000);
-    const bannerName = '1234.png';
+    const bannerName = 'new banner1.png';
 
     const totalEntries = Object.keys(active.tickets || {}).length;
 
@@ -232,7 +232,7 @@ async function updateActiveGiveawayMessage(client) {
         const msg = await ch.messages.fetch(active.postedMessageId).catch(() => null);
         if (!msg) return;
 
-        const bannerName = '1234.png';
+        const bannerName = 'new banner1.png';
         const bannerFile = new AttachmentBuilder(getBannerPath(bannerName), { name: bannerName });
         const embed = buildGiveawayEmbed(active);
         const components = buildGiveawayComponents();
@@ -341,7 +341,7 @@ async function postGiveawayMessage(client, active) {
     const ch = await client.channels.fetch(GIVEAWAY_CHANNEL_ID).catch(() => null);
     if (!ch || !ch.isTextBased?.()) return { ok: false };
 
-    const bannerName = '1234.png';
+    const bannerName = 'new banner1.png';
     const bannerFile = new AttachmentBuilder(getBannerPath(bannerName), { name: bannerName });
 
     const embed = buildGiveawayEmbed(active);
@@ -530,7 +530,7 @@ async function announceWinners(client, ended) {
     const ch = await client.channels.fetch(GIVEAWAY_CHANNEL_ID).catch(() => null);
     if (!ch || !ch.isTextBased?.()) return;
 
-    const winnerName = 'winner.png';
+    const winnerName = 'new banner1.png';
     const winnerFile = new AttachmentBuilder(getBannerPath(winnerName), { name: winnerName });
 
     const prizeLine = boldAll(`▫️ Prize: ${ended.prize}`);

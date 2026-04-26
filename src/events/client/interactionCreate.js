@@ -727,7 +727,6 @@ module.exports = {
 　　　　　　　　 𑣲 ． ˙ ． 𑣲
 
 　　　　　[ ✦ 𝐄 𝐍 𝐓 𝐄 𝐑 ✦ ](https://discord.gg/bNC2PCjpQZ)
-[⠀](https://media.discordapp.net/attachments/1470116485627379806/1494000633215189213/nopo.png?ex=69e10404&is=69dfb284&hm=2b6b52a4ea2fc74309a93a782ad932d0387cfb4eefe8fc7f3ece9607d6e8daea&=&format=webp&quality=lossless&width=1526&height=859)
  ||@everyone||` ,
                     allowedMentions: { parse: [] }
                 }).catch(() => { });
@@ -1204,12 +1203,28 @@ module.exports = {
                         .setColor('#2DFFB3')
                         .setTitle('👑 Marriage Sealed')
                         .setDescription(`💍 Congratulations! <@${requesterId}> and <@${targetId}> are now officially married!\n\nMay your saga be eternal. 💖`)
-                        .setThumbnail('https://cdn-icons-png.flaticon.com/512/833/833472.png')
-                        .setImage('https://media.tenor.com/2hZlWvZ8c4QAAAAC/wedding-anime.gif')
                         .setFooter(THEME.FOOTER)
                         .setTimestamp();
 
-                    await interaction.message.edit({ embeds: [celebrate], components: [disableRow()] }).catch(() => { });
+                    const bannerName = 'new banner1.png';
+                    const bannerCandidates = [
+                        path.join(__dirname, '../../../assets', bannerName),
+                        path.join(__dirname, '../../assets', bannerName),
+                        path.join(process.cwd(), 'assets', bannerName),
+                        path.join(process.cwd(), 'src', 'assets', bannerName),
+                        path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+                    ];
+                    const bannerPath = bannerCandidates.find(p => {
+                        try { return fs.existsSync(p); } catch (_) { return false; }
+                    }) || null;
+                    const files = [];
+                    if (bannerPath) {
+                        files.push({ attachment: bannerPath, name: bannerName });
+                        celebrate.setThumbnail(`attachment://${bannerName}`);
+                        celebrate.setImage(`attachment://${bannerName}`);
+                    }
+
+                    await interaction.message.edit({ embeds: [celebrate], components: [disableRow()], files }).catch(() => { });
                     return;
                 } catch (err) {
                     console.error('[MARRIAGE] Accept error:', err);

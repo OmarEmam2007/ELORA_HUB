@@ -5,19 +5,19 @@ const THEME = require('./theme');
 const ASSETS_DIR = path.join(__dirname, '..', '..', 'assets');
 
 const ASSET_FILES = {
-    wrong: '9596-wrong.gif',
-    ok: '28943-check-yes2.gif',
-    loading: '1181-maruloader.gif',
-    diamond: '8367-white-diamond.gif',
-    epic: '557037-whitesilverbowgif.gif',
-    role: '1415-roletank.png',
-    moon: 'moon.jpg',
-    info: '627252-info.png',
-    cooldown: '8649-cooldown.png',
-    locked: '3409-locked.png',
-    unlock: '28110-unlock.png',
-    security: '2879-checksecurity.png',
-    money: '19128-ice-spice-money.gif'
+    wrong: 'new banner1.png',
+    ok: 'new banner1.png',
+    loading: 'new banner1.png',
+    diamond: 'new banner1.png',
+    epic: 'new banner1.png',
+    role: 'new banner1.png',
+    moon: 'new banner1.png',
+    info: 'new banner1.png',
+    cooldown: 'new banner1.png',
+    locked: 'new banner1.png',
+    unlock: 'new banner1.png',
+    security: 'new banner1.png',
+    money: 'new banner1.png'
 };
 
 function buildAssetAttachment(key) {

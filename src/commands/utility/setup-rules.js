@@ -10,7 +10,7 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const bannerName = '1234.png';
+        const bannerName = 'new banner1.png';
         const bannerPath = path.join(__dirname, '../../assets', bannerName);
         const bannerFile = new AttachmentBuilder(bannerPath, { name: bannerName });
 

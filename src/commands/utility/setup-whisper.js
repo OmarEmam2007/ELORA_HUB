@@ -21,7 +21,7 @@ module.exports = {
 
         await interaction.deferReply({ ephemeral: true });
 
-        const bannerName = 'nopo.png';
+        const bannerName = 'new banner1.png';
         const bannerCandidates = [
             path.join(__dirname, '../../assets', bannerName),
             path.join(__dirname, '../../../assets', bannerName),

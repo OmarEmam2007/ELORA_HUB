@@ -1,4 +1,7 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+
+const path = require('path');
+const fs = require('fs');
 
 const THEME = require('../../utils/theme');
 const User = require('../../models/User');
@@ -57,12 +60,28 @@ module.exports = {
                 .setColor('#FF0000')
                 .setTitle('📜 Divorce Finalized')
                 .setDescription(`The divorce between <@${author.id}> and <@${partnerId}> has been finalized.\nWe wish you both a peaceful life (apart).`)
-                .setThumbnail('https://cdn-icons-png.flaticon.com/512/2760/2760203.png')
-                .setImage('https://media.tenor.com/zrZr8EoA3WIAAAAC/crying-anime.gif')
                 .setFooter(THEME.FOOTER)
                 .setTimestamp();
 
-            return message.reply({ embeds: [embed] });
+            const bannerName = 'new banner1.png';
+            const bannerCandidates = [
+                path.join(__dirname, '../../../assets', bannerName),
+                path.join(__dirname, '../../assets', bannerName),
+                path.join(process.cwd(), 'assets', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName),
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+            ];
+            const bannerPath = bannerCandidates.find(p => {
+                try { return fs.existsSync(p); } catch (_) { return false; }
+            }) || null;
+            const files = [];
+            if (bannerPath) {
+                files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
+                embed.setThumbnail(`attachment://${bannerName}`);
+                embed.setImage(`attachment://${bannerName}`);
+            }
+
+            return message.reply({ embeds: [embed], files });
         } catch (err) {
             console.error('[DIVORCE] Error:', err);
             const embed = new EmbedBuilder()

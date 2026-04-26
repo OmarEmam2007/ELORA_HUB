@@ -1,4 +1,6 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const path = require('path');
+const fs = require('fs');
 const ModSettings = require('../../models/ModSettings');
 const ModLog = require('../../models/ModLog');
 
@@ -19,6 +21,21 @@ async function generateDashboard(guildId) {
     const totalViolations = stats.length > 0 ? stats[0].total : 0;
     const extremeViolations = stats.length > 0 ? stats[0].severe : 0;
 
+    const bannerName = 'new banner1.png';
+    const repoRoot = path.join(__dirname, '..', '..', '..');
+    const bannerCandidates = [
+        path.join(repoRoot, 'assets', bannerName),
+        path.join(repoRoot, 'src', 'assets', bannerName),
+        path.join(process.cwd(), 'assets', bannerName),
+        path.join(process.cwd(), 'src', 'assets', bannerName),
+        path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+    ];
+    const bannerPath = bannerCandidates.find(p => {
+        try { return fs.existsSync(p); } catch (_) { return false; }
+    }) || null;
+    const files = [];
+    if (bannerPath) files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
+
     const embed = new EmbedBuilder()
         .setTitle('🛰️  𝐄 𝐋 𝐎 𝐑 𝐀  𝐒 𝐌 𝐀 𝐑 𝐓  𝐃 𝐀 𝐒 𝐇 𝐁 𝐎 𝐀 𝐑 𝐃  🛰️')
         .setColor('#5865F2')
@@ -30,8 +47,13 @@ async function generateDashboard(guildId) {
             { name: '🧠 Adaptive Learning', value: settings.learningMode ? '✅ Active' : '❌ Inactive', inline: true },
             { name: '📊 Total Violations', value: `\`${totalViolations}\``, inline: true },
             { name: '🔥 Extreme Alerts', value: `\`${extremeViolations}\``, inline: true }
-        )
-        .setImage('https://i.imgur.com/uR1D6Rk.png') // Placeholder for a cool gradient/tech image if possible, or omit
+        );
+
+    if (files.length) {
+        embed.setImage(`attachment://${bannerName}`);
+    }
+
+    embed
         .setFooter({ text: 'Sovereign Nexus • Sentient Entry System' })
         .setTimestamp();
 
@@ -63,7 +85,7 @@ async function generateDashboard(guildId) {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-    return { embeds: [embed], components: [row1, row2] };
+    return { embeds: [embed], components: [row1, row2], files };
 }
 
 module.exports = { generateDashboard };

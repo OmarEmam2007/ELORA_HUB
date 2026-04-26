@@ -123,7 +123,7 @@ module.exports = {
                 // ignore
             }
 
-            const bannerName = 'nopo.png';
+            const bannerName = 'new banner1.png';
             const bannerCandidates = [
                 path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
             ];
