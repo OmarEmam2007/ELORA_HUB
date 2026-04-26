@@ -461,7 +461,7 @@ module.exports = {
                     ctx.restore();
 
                     // subtitle
-                    
+                    const sub = 'WELCOME TO ELORA';
                     const subSize = Math.max(18, Math.min(36, Math.floor(titleSize * 0.45)));
                     ctx.shadowBlur = 10;
                     ctx.font = `650 ${subSize}px Inter, Sans`;
