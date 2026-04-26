@@ -158,12 +158,19 @@ module.exports = {
                         const fontsDir = path.join(process.cwd(), 'src', 'assets', 'fonts');
                         const montserratPath = path.join(fontsDir, 'Montserrat-Black.ttf');
                         const interPath = path.join(fontsDir, 'Inter-SemiBold.ttf');
+                        const cinzelPath = path.join(fontsDir, 'Cinzel-SemiBold.ttf');
+                        const cinzelBoldPath = path.join(fontsDir, 'Cinzel-Bold.ttf');
 
                         if (fs.existsSync(montserratPath)) {
                             Canvas.GlobalFonts.registerFromPath(montserratPath, 'Montserrat');
                         }
                         if (fs.existsSync(interPath)) {
                             Canvas.GlobalFonts.registerFromPath(interPath, 'Inter');
+                        }
+                        if (fs.existsSync(cinzelBoldPath)) {
+                            Canvas.GlobalFonts.registerFromPath(cinzelBoldPath, 'Cinzel');
+                        } else if (fs.existsSync(cinzelPath)) {
+                            Canvas.GlobalFonts.registerFromPath(cinzelPath, 'Cinzel');
                         }
                     } catch (_) {
                         // ignore font loading errors; fallback to system fonts
@@ -192,7 +199,7 @@ module.exports = {
                     const fitText = (text, maxWidth, startSize, minSize) => {
                         let size = startSize;
                         while (size > minSize) {
-                            ctx.font = `900 ${size}px Montserrat, Sans`;
+                            ctx.font = `800 ${size}px Cinzel, Montserrat, Serif`;
                             const m = ctx.measureText(text);
                             if (m.width <= maxWidth) break;
                             size -= 2;
@@ -233,7 +240,7 @@ module.exports = {
                         ctx.fillStyle = 'rgba(255,255,255,0.08)';
                         ctx.fill();
                         ctx.lineWidth = 2;
-                        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
                         ctx.stroke();
                         ctx.restore();
 
@@ -247,16 +254,18 @@ module.exports = {
                         return { w, h };
                     };
 
+                    const ACCENT = 'rgba(197, 160, 72, 0.92)';
+
                     // Monochrome overlays (match the banner: black/white only)
                     const leftFade = ctx.createLinearGradient(0, 0, Math.floor(width * 0.7), 0);
-                    leftFade.addColorStop(0, 'rgba(0,0,0,0.78)');
-                    leftFade.addColorStop(0.55, 'rgba(0,0,0,0.42)');
+                    leftFade.addColorStop(0, 'rgba(0,0,0,0.64)');
+                    leftFade.addColorStop(0.55, 'rgba(0,0,0,0.32)');
                     leftFade.addColorStop(1, 'rgba(0,0,0,0)');
                     ctx.fillStyle = leftFade;
                     ctx.fillRect(0, 0, width, height);
 
                     const topFade = ctx.createLinearGradient(0, 0, 0, Math.floor(height * 0.30));
-                    topFade.addColorStop(0, 'rgba(0,0,0,0.68)');
+                    topFade.addColorStop(0, 'rgba(0,0,0,0.54)');
                     topFade.addColorStop(1, 'rgba(0,0,0,0)');
                     ctx.fillStyle = topFade;
                     ctx.fillRect(0, 0, width, height);
@@ -271,14 +280,14 @@ module.exports = {
                         Math.floor(Math.max(width, height) * 0.70)
                     );
                     vignette.addColorStop(0, 'rgba(0,0,0,0)');
-                    vignette.addColorStop(0.65, 'rgba(0,0,0,0.15)');
-                    vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+                    vignette.addColorStop(0.62, 'rgba(0,0,0,0.22)');
+                    vignette.addColorStop(1, 'rgba(0,0,0,0.62)');
                     ctx.fillStyle = vignette;
                     ctx.fillRect(0, 0, width, height);
 
                     // Film grain (very subtle, monochrome)
                     ctx.save();
-                    ctx.globalAlpha = 0.06;
+                    ctx.globalAlpha = 0.04;
                     const grainCount = Math.min(12000, Math.floor((width * height) / 180));
                     for (let i = 0; i < grainCount; i++) {
                         const x = (Math.random() * width) | 0;
@@ -332,7 +341,7 @@ module.exports = {
                     ctx.clip();
 
                     // Draw avatar as grayscale to match the banner
-                    ctx.filter = 'grayscale(1) contrast(1.12) brightness(1.05)';
+                    ctx.filter = 'saturate(0.88) contrast(1.12) brightness(1.02)';
                     ctx.drawImage(av, centerX - radius, centerY - radius, radius * 2, radius * 2);
                     ctx.filter = 'none';
                     ctx.restore();
@@ -377,7 +386,7 @@ module.exports = {
 
                     const titleMaxWidth = Math.floor(width * 0.58);
                     const titleSize = fitText(title.toUpperCase(), titleMaxWidth, Math.floor(height * 0.085), Math.floor(height * 0.05));
-                    ctx.font = `900 ${titleSize}px Montserrat, Sans`;
+                    ctx.font = `800 ${titleSize}px Cinzel, Montserrat, Serif`;
 
                     const textY = Math.floor(height * 0.26);
                     ctx.shadowColor = 'rgba(0,0,0,0.85)';
@@ -390,6 +399,53 @@ module.exports = {
                     const spaced = title.toUpperCase();
                     const spacing = Math.max(1, Math.floor(titleSize * 0.06));
                     drawSpacedText(spaced, centerX, textY, spacing, true);
+
+                    // Accent underline (adds a bit of life without ruining the theme)
+                    ctx.save();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 0.95;
+                    const underlineW = Math.floor(Math.min(titleMaxWidth, ctx.measureText(spaced).width) * 0.26);
+                    const underlineH = Math.max(3, Math.floor(titleSize * 0.06));
+                    const underlineX = Math.floor(centerX - underlineW / 2);
+                    const underlineY = Math.floor(textY + titleSize * 0.52);
+                    ctx.fillStyle = ACCENT;
+                    roundRect(underlineX, underlineY, underlineW, underlineH, Math.floor(underlineH / 2));
+                    ctx.fill();
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 0.70;
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+                    const ornamentY = Math.floor(underlineY + underlineH / 2);
+                    const gap = Math.floor(Math.max(14, titleSize * 0.22));
+                    const leftX1 = Math.floor(centerX - underlineW / 2 - gap);
+                    const leftX0 = Math.floor(Math.max(0, leftX1 - Math.min(140, Math.floor(titleMaxWidth * 0.18))));
+                    const rightX0 = Math.floor(centerX + underlineW / 2 + gap);
+                    const rightX1 = Math.floor(Math.min(width, rightX0 + Math.min(140, Math.floor(titleMaxWidth * 0.18))));
+                    ctx.beginPath();
+                    ctx.moveTo(leftX0, ornamentY);
+                    ctx.lineTo(leftX1, ornamentY);
+                    ctx.moveTo(rightX0, ornamentY);
+                    ctx.lineTo(rightX1, ornamentY);
+                    ctx.stroke();
+
+                    ctx.globalAlpha = 0.85;
+                    ctx.fillStyle = ACCENT;
+                    const d = Math.max(4, Math.floor(titleSize * 0.08));
+                    const drawDiamond = (x, y) => {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y - d);
+                        ctx.lineTo(x + d, y);
+                        ctx.lineTo(x, y + d);
+                        ctx.lineTo(x - d, y);
+                        ctx.closePath();
+                        ctx.fill();
+                    };
+                    drawDiamond(leftX1 + Math.floor(gap * 0.35), ornamentY);
+                    drawDiamond(rightX0 - Math.floor(gap * 0.35), ornamentY);
+                    ctx.restore();
 
                     // subtitle
                     const sub = 'WELCOME TO ELORA';
@@ -412,6 +468,15 @@ module.exports = {
                     const topLeftX = Math.floor(width * 0.06);
                     const topY = Math.floor(height * 0.06);
                     const b1 = drawPill({ x: topLeftX, y: topY, text: 'NEW MEMBER', paddingX: 14, paddingY: 8, radius: 14 });
+
+                    // Subtle accent stroke on first badge
+                    ctx.save();
+                    ctx.globalAlpha = 0.8;
+                    ctx.lineWidth = 2;
+                    roundRect(topLeftX, topY, b1.w, b1.h, 14);
+                    ctx.strokeStyle = ACCENT;
+                    ctx.stroke();
+                    ctx.restore();
 
                     const idShort = String(member.id || '').slice(-6);
                     drawPill({ x: topLeftX + b1.w + 10, y: topY, text: `ID • ${idShort}`, paddingX: 14, paddingY: 8, radius: 14 });
