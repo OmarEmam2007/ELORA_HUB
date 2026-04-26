@@ -132,9 +132,9 @@ module.exports = {
 
             const bannerName = 'new banner1.png';
             const bannerCandidates = [
-                path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName),
                 path.join(process.cwd(), 'assets', bannerName),
-                path.join(process.cwd(), 'src', 'assets', bannerName)
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
             ];
 
             const bannerPath = bannerCandidates.find((p) => {
