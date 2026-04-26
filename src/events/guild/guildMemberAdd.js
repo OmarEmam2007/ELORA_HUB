@@ -4,6 +4,13 @@ const fs = require('fs');
 const InviteStats = require('../../models/InviteStats');
 const giveawayService = require('../../services/giveawayService');
 
+let Canvas = null;
+try {
+    Canvas = require('@napi-rs/canvas');
+} catch (_) {
+    Canvas = null;
+}
+
 module.exports = {
     name: 'guildMemberAdd',
     async execute(member, client) {
@@ -135,7 +142,82 @@ module.exports = {
                     return false;
                 }
             }) || null;
-            const bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
+
+            let bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
+
+            // Build a dynamic welcome image (banner background + circular avatar + welcome text)
+            try {
+                if (Canvas && bannerPath) {
+                    const bg = await Canvas.loadImage(bannerPath);
+
+                    const width = bg.width || 1600;
+                    const height = bg.height || 900;
+                    const canvas = Canvas.createCanvas(width, height);
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.drawImage(bg, 0, 0, width, height);
+
+                    // --- avatar ---
+                    const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
+                    const av = await Canvas.loadImage(avatarUrl);
+
+                    const centerX = Math.floor(width / 2);
+                    const centerY = Math.floor(height / 2) + Math.floor(height * 0.05);
+                    const radius = Math.floor(Math.min(width, height) * 0.14);
+
+                    // soft shadow
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius + 10, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+                    ctx.shadowBlur = 18;
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                    ctx.fill();
+                    ctx.restore();
+
+                    // clip circle
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.clip();
+
+                    ctx.drawImage(av, centerX - radius, centerY - radius, radius * 2, radius * 2);
+                    ctx.restore();
+
+                    // ring
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius + 6, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.lineWidth = 8;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // --- text ---
+                    const username = member.user.globalName || member.user.username;
+                    const title = `WELCOME ${username}`;
+
+                    const fontSize = Math.floor(Math.min(width, height) * 0.06);
+                    ctx.font = `800 ${fontSize}px Sans`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+                    ctx.lineWidth = Math.max(2, Math.floor(fontSize * 0.12));
+
+                    const textY = Math.floor(height * 0.18);
+                    ctx.strokeText(title, centerX, textY);
+                    ctx.fillText(title, centerX, textY);
+
+                    const out = canvas.toBuffer('image/png');
+                    bannerFile = new AttachmentBuilder(out, { name: bannerName });
+                }
+            } catch (_) {
+                // fallback to static bannerFile
+            }
 
             const header = '**' + toSmallCaps('WELCOME TO ELORA') + '**';
             const body = [
