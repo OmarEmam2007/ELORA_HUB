@@ -132,7 +132,9 @@ module.exports = {
 
             const bannerName = 'new banner1.png';
             const bannerCandidates = [
-                path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
+                path.join(process.cwd(), 'ELORA NEW THEME', bannerName),
+                path.join(process.cwd(), 'assets', bannerName),
+                path.join(process.cwd(), 'src', 'assets', bannerName)
             ];
 
             const bannerPath = bannerCandidates.find((p) => {
@@ -148,6 +150,25 @@ module.exports = {
             // Build a dynamic welcome image (banner background + circular avatar + welcome text)
             try {
                 if (Canvas && bannerPath) {
+                    // Optional custom fonts (for consistent premium typography)
+                    // Put the following files in: src/assets/fonts/
+                    // - Montserrat-Black.ttf
+                    // - Inter-SemiBold.ttf
+                    try {
+                        const fontsDir = path.join(process.cwd(), 'src', 'assets', 'fonts');
+                        const montserratPath = path.join(fontsDir, 'Montserrat-Black.ttf');
+                        const interPath = path.join(fontsDir, 'Inter-SemiBold.ttf');
+
+                        if (fs.existsSync(montserratPath)) {
+                            Canvas.GlobalFonts.registerFromPath(montserratPath, 'Montserrat');
+                        }
+                        if (fs.existsSync(interPath)) {
+                            Canvas.GlobalFonts.registerFromPath(interPath, 'Inter');
+                        }
+                    } catch (_) {
+                        // ignore font loading errors; fallback to system fonts
+                    }
+
                     const bg = await Canvas.loadImage(bannerPath);
 
                     const width = bg.width || 1600;
@@ -171,7 +192,7 @@ module.exports = {
                     const fitText = (text, maxWidth, startSize, minSize) => {
                         let size = startSize;
                         while (size > minSize) {
-                            ctx.font = `900 ${size}px Sans`;
+                            ctx.font = `900 ${size}px Montserrat, Sans`;
                             const m = ctx.measureText(text);
                             if (m.width <= maxWidth) break;
                             size -= 2;
@@ -226,49 +247,47 @@ module.exports = {
                         return { w, h };
                     };
 
-                    // Cinematic overlays to ensure readability + premium look
-                    const leftFade = ctx.createLinearGradient(0, 0, Math.floor(width * 0.65), 0);
-                    leftFade.addColorStop(0, 'rgba(0,0,0,0.72)');
-                    leftFade.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+                    // Monochrome overlays (match the banner: black/white only)
+                    const leftFade = ctx.createLinearGradient(0, 0, Math.floor(width * 0.7), 0);
+                    leftFade.addColorStop(0, 'rgba(0,0,0,0.78)');
+                    leftFade.addColorStop(0.55, 'rgba(0,0,0,0.42)');
                     leftFade.addColorStop(1, 'rgba(0,0,0,0)');
                     ctx.fillStyle = leftFade;
                     ctx.fillRect(0, 0, width, height);
 
-                    const topFade = ctx.createLinearGradient(0, 0, 0, Math.floor(height * 0.35));
-                    topFade.addColorStop(0, 'rgba(0,0,0,0.65)');
+                    const topFade = ctx.createLinearGradient(0, 0, 0, Math.floor(height * 0.30));
+                    topFade.addColorStop(0, 'rgba(0,0,0,0.68)');
                     topFade.addColorStop(1, 'rgba(0,0,0,0)');
                     ctx.fillStyle = topFade;
                     ctx.fillRect(0, 0, width, height);
 
-                    // Vignette (focus center-left)
+                    // Vignette (subtle, monochrome)
                     const vignette = ctx.createRadialGradient(
-                        Math.floor(width * 0.33),
-                        Math.floor(height * 0.55),
-                        Math.floor(Math.min(width, height) * 0.25),
-                        Math.floor(width * 0.33),
-                        Math.floor(height * 0.55),
-                        Math.floor(Math.min(width, height) * 0.78)
+                        Math.floor(width * 0.55),
+                        Math.floor(height * 0.52),
+                        Math.floor(Math.min(width, height) * 0.20),
+                        Math.floor(width * 0.55),
+                        Math.floor(height * 0.52),
+                        Math.floor(Math.max(width, height) * 0.70)
                     );
                     vignette.addColorStop(0, 'rgba(0,0,0,0)');
+                    vignette.addColorStop(0.65, 'rgba(0,0,0,0.15)');
                     vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
                     ctx.fillStyle = vignette;
                     ctx.fillRect(0, 0, width, height);
 
-                    // Subtle grain
-                    try {
-                        const img = ctx.getImageData(0, 0, width, height);
-                        const d = img.data;
-                        const strength = 10;
-                        for (let i = 0; i < d.length; i += 4) {
-                            const n = (Math.random() * 2 - 1) * strength;
-                            d[i] = Math.max(0, Math.min(255, d[i] + n));
-                            d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
-                            d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
-                        }
-                        ctx.putImageData(img, 0, 0);
-                    } catch (_) {
-                        // ignore grain failures
+                    // Film grain (very subtle, monochrome)
+                    ctx.save();
+                    ctx.globalAlpha = 0.06;
+                    const grainCount = Math.min(12000, Math.floor((width * height) / 180));
+                    for (let i = 0; i < grainCount; i++) {
+                        const x = (Math.random() * width) | 0;
+                        const y = (Math.random() * height) | 0;
+                        const v = (Math.random() * 255) | 0;
+                        ctx.fillStyle = `rgb(${v},${v},${v})`;
+                        ctx.fillRect(x, y, 1, 1);
                     }
+                    ctx.restore();
 
                     // --- avatar ---
                     const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
@@ -279,18 +298,18 @@ module.exports = {
                     const centerY = Math.floor(height * 0.58);
                     const radius = Math.floor(Math.min(width, height) * 0.17);
 
-                    // Glass card behind avatar
-                    const cardW = Math.floor(radius * 3.0);
-                    const cardH = Math.floor(radius * 2.35);
+                    // Minimal plate behind avatar (keep monochrome + subtle)
+                    const cardW = Math.floor(radius * 2.85);
+                    const cardH = Math.floor(radius * 2.15);
                     const cardX = Math.floor(centerX - cardW / 2);
                     const cardY = Math.floor(centerY - cardH / 2);
 
                     ctx.save();
-                    roundRect(cardX, cardY, cardW, cardH, Math.floor(radius * 0.35));
-                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                    roundRect(cardX, cardY, cardW, cardH, Math.floor(radius * 0.30));
+                    ctx.fillStyle = 'rgba(0,0,0,0.28)';
                     ctx.fill();
                     ctx.lineWidth = 2;
-                    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+                    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
                     ctx.stroke();
                     ctx.restore();
 
@@ -312,49 +331,40 @@ module.exports = {
                     ctx.closePath();
                     ctx.clip();
 
+                    // Draw avatar as grayscale to match the banner
+                    ctx.filter = 'grayscale(1) contrast(1.12) brightness(1.05)';
                     ctx.drawImage(av, centerX - radius, centerY - radius, radius * 2, radius * 2);
+                    ctx.filter = 'none';
                     ctx.restore();
 
-                    // Shine / highlight overlay (adds a premium feel)
+                    // Subtle monochrome highlight
                     ctx.save();
                     ctx.beginPath();
                     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
                     ctx.closePath();
                     ctx.clip();
 
-                    const shine = ctx.createLinearGradient(
-                        centerX - radius,
-                        centerY - radius,
-                        centerX + radius,
-                        centerY + radius
-                    );
-                    shine.addColorStop(0, 'rgba(255,255,255,0.35)');
-                    shine.addColorStop(0.35, 'rgba(255,255,255,0.10)');
+                    const shine = ctx.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+                    shine.addColorStop(0, 'rgba(255,255,255,0.22)');
+                    shine.addColorStop(0.35, 'rgba(255,255,255,0.08)');
                     shine.addColorStop(0.7, 'rgba(255,255,255,0.00)');
                     ctx.fillStyle = shine;
                     ctx.fillRect(centerX - radius, centerY - radius, radius * 2, radius * 2);
-
-                    // subtle diagonal streak
-                    ctx.globalAlpha = 0.22;
-                    ctx.fillStyle = 'rgba(106,228,255,1)';
-                    ctx.translate(centerX, centerY);
-                    ctx.rotate(-0.45);
-                    ctx.fillRect(-radius * 2, -radius * 0.15, radius * 4, radius * 0.24);
                     ctx.restore();
 
                     // ring
                     ctx.save();
                     const ringGrad = ctx.createLinearGradient(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
-                    ringGrad.addColorStop(0, 'rgba(106,228,255,0.95)');
-                    ringGrad.addColorStop(0.55, 'rgba(255,255,255,0.85)');
-                    ringGrad.addColorStop(1, 'rgba(106,228,255,0.95)');
+                    ringGrad.addColorStop(0, 'rgba(255,255,255,0.92)');
+                    ringGrad.addColorStop(0.5, 'rgba(255,255,255,0.55)');
+                    ringGrad.addColorStop(1, 'rgba(255,255,255,0.92)');
                     ctx.beginPath();
                     ctx.arc(centerX, centerY, radius + 7, 0, Math.PI * 2);
                     ctx.closePath();
                     ctx.lineWidth = 10;
                     ctx.strokeStyle = ringGrad;
-                    ctx.shadowColor = 'rgba(106,228,255,0.35)';
-                    ctx.shadowBlur = 14;
+                    ctx.shadowColor = 'rgba(255,255,255,0.10)';
+                    ctx.shadowBlur = 6;
                     ctx.stroke();
                     ctx.restore();
 
@@ -365,13 +375,13 @@ module.exports = {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
 
-                    const titleMaxWidth = Math.floor(width * 0.55);
+                    const titleMaxWidth = Math.floor(width * 0.58);
                     const titleSize = fitText(title.toUpperCase(), titleMaxWidth, Math.floor(height * 0.085), Math.floor(height * 0.05));
-                    ctx.font = `900 ${titleSize}px Sans`;
+                    ctx.font = `900 ${titleSize}px Montserrat, Sans`;
 
                     const textY = Math.floor(height * 0.26);
                     ctx.shadowColor = 'rgba(0,0,0,0.85)';
-                    ctx.shadowBlur = 22;
+                    ctx.shadowBlur = 18;
                     ctx.fillStyle = 'rgba(255,255,255,0.96)';
                     ctx.strokeStyle = 'rgba(0,0,0,0.65)';
                     ctx.lineWidth = Math.max(3, Math.floor(titleSize * 0.12));
@@ -384,36 +394,36 @@ module.exports = {
                     // subtitle
                     const sub = 'WELCOME TO ELORA';
                     const subSize = Math.floor(titleSize * 0.45);
-                    ctx.shadowBlur = 14;
-                    ctx.font = `700 ${subSize}px Sans`;
-                    ctx.fillStyle = 'rgba(106,228,255,0.92)';
+                    ctx.shadowBlur = 10;
+                    ctx.font = `650 ${subSize}px Inter, Sans`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.72)';
                     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
                     ctx.lineWidth = Math.max(2, Math.floor(subSize * 0.12));
                     ctx.strokeText(sub, centerX, Math.floor(textY + titleSize * 0.75));
                     ctx.fillText(sub, centerX, Math.floor(textY + titleSize * 0.75));
 
-                    // Badges (premium pills)
+                    // Badges (minimal mono tags)
                     ctx.save();
-                    const badgeFont = Math.max(14, Math.floor(height * 0.028));
-                    ctx.font = `800 ${badgeFont}px Sans`;
-                    ctx.shadowColor = 'rgba(0,0,0,0.65)';
-                    ctx.shadowBlur = 14;
+                    const badgeFont = Math.max(13, Math.floor(height * 0.026));
+                    ctx.font = `700 ${badgeFont}px Inter, Sans`;
+                    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+                    ctx.shadowBlur = 10;
 
                     const topLeftX = Math.floor(width * 0.06);
                     const topY = Math.floor(height * 0.06);
-                    const b1 = drawPill({ x: topLeftX, y: topY, text: 'NEW MEMBER' });
+                    const b1 = drawPill({ x: topLeftX, y: topY, text: 'NEW MEMBER', paddingX: 14, paddingY: 8, radius: 14 });
 
                     const idShort = String(member.id || '').slice(-6);
-                    drawPill({ x: topLeftX + b1.w + 12, y: topY, text: `ID • ${idShort}` });
+                    drawPill({ x: topLeftX + b1.w + 10, y: topY, text: `ID • ${idShort}`, paddingX: 14, paddingY: 8, radius: 14 });
                     ctx.restore();
 
                     // Info line (Invited by + member count) - minimal and clean
                     const invitedByClean = ellipsis(String(inviterText || '@DISBOARD').replace(/\s+/g, ' ').trim(), 22);
                     const infoText = `INVITED BY ${invitedByClean}  •  MEMBER #${guild.memberCount || 0}`;
                     const infoSize = Math.max(16, Math.floor(subSize * 0.58));
-                    ctx.shadowBlur = 10;
-                    ctx.font = `700 ${infoSize}px Sans`;
-                    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+                    ctx.shadowBlur = 8;
+                    ctx.font = `650 ${infoSize}px Inter, Sans`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.78)';
                     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
                     ctx.lineWidth = Math.max(2, Math.floor(infoSize * 0.10));
                     ctx.strokeText(infoText, centerX, Math.floor(centerY + radius + infoSize * 2.2));
