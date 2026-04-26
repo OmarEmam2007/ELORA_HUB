@@ -145,6 +145,10 @@ module.exports = {
                 }
             }) || null;
 
+            if (bannerPath) {
+                console.log('[welcome] Using banner:', bannerPath);
+            }
+
             let bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
 
             // Build a dynamic welcome image (banner background + circular avatar + welcome text)
@@ -298,6 +302,11 @@ module.exports = {
                     }
                     ctx.restore();
 
+                    ctx.globalAlpha = 1;
+                    ctx.filter = 'none';
+                    ctx.shadowBlur = 0;
+                    ctx.shadowColor = 'rgba(0,0,0,0)';
+
                     // --- avatar ---
                     const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
                     const av = await Canvas.loadImage(avatarUrl);
@@ -380,6 +389,9 @@ module.exports = {
                     // --- text ---
                     const username = member.user.globalName || member.user.username;
                     const title = `WELCOME ${username}`;
+
+                    ctx.globalAlpha = 1;
+                    ctx.filter = 'none';
 
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
