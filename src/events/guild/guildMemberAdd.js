@@ -149,6 +149,7 @@ module.exports = {
                 console.log('[welcome] Using banner:', bannerPath);
             }
 
+            const welcomeOutName = `welcome-${member.id}.png`;
             let bannerFile = bannerPath ? new AttachmentBuilder(bannerPath, { name: bannerName }) : null;
 
             // Build a dynamic welcome image (banner background + circular avatar + welcome text)
@@ -507,7 +508,7 @@ module.exports = {
                     ctx.fillText(infoText, centerX, Math.floor(centerY + radius + infoSize * 2.2));
 
                     const out = canvas.toBuffer('image/png');
-                    bannerFile = new AttachmentBuilder(out, { name: bannerName });
+                    bannerFile = new AttachmentBuilder(out, { name: welcomeOutName });
                 }
             } catch (_) {
                 // fallback to static bannerFile
