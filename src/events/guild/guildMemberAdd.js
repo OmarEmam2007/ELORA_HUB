@@ -490,9 +490,6 @@ module.exports = {
                     ctx.strokeStyle = ACCENT;
                     ctx.stroke();
                     ctx.restore();
-
-                    const idShort = String(member.id || '').slice(-6);
-                    drawPill({ x: topLeftX + b1.w + 10, y: topY, text: `ID • ${idShort}`, paddingX: 14, paddingY: 8, radius: 14 });
                     ctx.restore();
 
                     // Info line (Invited by + member count) - minimal and clean
