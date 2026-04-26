@@ -63,13 +63,19 @@ module.exports = {
         ];
         const bannerPath = bannerCandidates.find(p => {
             try { return fs.existsSync(p); } catch (_) { return false; }
-        }) || bannerCandidates[0];
-        const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
+        }) || null;
+        const files = [];
+        if (bannerPath) {
+            files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
+        }
 
         const embed = new EmbedBuilder()
             .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-            .setDescription('**Temp Voice Control**')
-            .setImage(`attachment://${bannerName}`);
+            .setDescription('**Temp Voice Control**');
+
+        if (files.length) {
+            embed.setImage(`attachment://${bannerName}`);
+        }
 
         const buttons = [
             new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('LOCK'),
@@ -93,8 +99,10 @@ module.exports = {
 
         const rows = buildButtonRows(buttons, 5);
 
-        await channel.send({ files: [banner] });
-        await channel.send({ files: [banner], embeds: [embed], components: rows });
+        if (files.length) {
+            await channel.send({ files });
+        }
+        await channel.send({ files, embeds: [embed], components: rows });
         await interaction.reply({ content: `✅ TempVoice control panel deployed in ${channel}`, ephemeral: true });
     }
 };
