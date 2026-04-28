@@ -884,9 +884,19 @@ module.exports = {
             }
         }
 
-        if (interaction.isStringSelectMenu?.() && (interaction.customId === 'role_age_select' || interaction.customId === 'role_gender_select' || interaction.customId === 'role_bump_select')) {
+        if (interaction.isStringSelectMenu?.() && (
+            interaction.customId === 'role_age_select' ||
+            interaction.customId === 'role_gender_select' ||
+            interaction.customId === 'role_bump_select' ||
+            interaction.customId === 'role_color_select' ||
+            interaction.customId === 'role_gradient_select'
+        )) {
             const ROLE_CHANNEL_ID = '1480003221853306971';
-            if (interaction.channelId !== ROLE_CHANNEL_ID) {
+            if (
+                interaction.channelId !== ROLE_CHANNEL_ID &&
+                interaction.customId !== 'role_color_select' &&
+                interaction.customId !== 'role_gradient_select'
+            ) {
                 return;
             }
 
@@ -928,6 +938,24 @@ module.exports = {
             };
 
             const BUMP_NOTIFY_ROLE_ID = '1494109618413113415';
+
+            const SOLID_COLOR_ROLE_IDS = {
+                black: '1498793481878110410',
+                white: '1498793628003336353',
+                bloody_red: '1498793984561250314',
+                purple: '1498794109882728489',
+                pink: '1498794314254389289',
+                rose_pink: '1498794953747468309'
+            };
+
+            const GRADIENT_COLOR_ROLE_IDS = {
+                margo: '1498795229833068767',
+                expresso: '1498795535446970368',
+                pure_lust: '1498795842713288844',
+                delicate: '1498796067116810433',
+                mauve: '1498796623323594842',
+                deep_space: '1498796924965228695'
+            };
 
             const member = interaction.member;
             if (!member || !member.roles?.cache) {
@@ -982,6 +1010,30 @@ module.exports = {
                     return safeEdit({ content: `${okPrefix}**${toSmallCaps('UPDATED')}**` });
                 }
                 return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
+            }
+
+            if (interaction.customId === 'role_color_select') {
+                const roleId = SOLID_COLOR_ROLE_IDS[value];
+                if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
+
+                const toRemove = Object.values(SOLID_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                if (toRemove.length) {
+                    await member.roles.remove(toRemove).catch(() => { });
+                }
+                await member.roles.add(roleId).catch(() => { });
+                return safeEdit({ content: `${okPrefix}**${toSmallCaps('COLOR UPDATED')}**` });
+            }
+
+            if (interaction.customId === 'role_gradient_select') {
+                const roleId = GRADIENT_COLOR_ROLE_IDS[value];
+                if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
+
+                const toRemove = Object.values(GRADIENT_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                if (toRemove.length) {
+                    await member.roles.remove(toRemove).catch(() => { });
+                }
+                await member.roles.add(roleId).catch(() => { });
+                return safeEdit({ content: `${okPrefix}**${toSmallCaps('GRADIENT UPDATED')}**` });
             }
         }
 

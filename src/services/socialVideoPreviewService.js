@@ -1,5 +1,7 @@
 const MAX_BYTES = 25 * 1024 * 1024;
 
+const DEBUG = process.env.SOCIAL_VIDEO_DEBUG === '1';
+
 const SOCIAL_VIDEO_REGEX = /https?:\/\/\S+/gi;
 
 function extractCandidateUrls(content) {
@@ -54,6 +56,31 @@ async function fetchJson(url) {
     return res.json().catch(() => null);
 }
 
+async function resolveFinalUrl(rawUrl) {
+    try {
+        const u = new URL(rawUrl);
+        const host = u.hostname.toLowerCase();
+        const isTikTok = host === 'tiktok.com' || host.endsWith('.tiktok.com');
+        if (!isTikTok) return rawUrl;
+
+        const res = await fetch(rawUrl, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+                'user-agent': 'Mozilla/5.0'
+            }
+        });
+
+        const finalUrl = res?.url ? String(res.url) : rawUrl;
+        if (DEBUG && finalUrl !== rawUrl) {
+            console.debug(`[SOCIAL_VIDEO] resolved tiktok url: ${rawUrl} -> ${finalUrl}`);
+        }
+        return finalUrl;
+    } catch (_) {
+        return rawUrl;
+    }
+}
+
 async function tryGetRedditStats(rawUrl) {
     let u;
     try {
@@ -91,7 +118,8 @@ async function cobaltDownload(rawUrl) {
         method: 'POST',
         headers: {
             'content-type': 'application/json',
-            accept: 'application/json'
+            accept: 'application/json',
+            'user-agent': 'Mozilla/5.0'
         },
         body: JSON.stringify({
             url: rawUrl,
@@ -102,6 +130,13 @@ async function cobaltDownload(rawUrl) {
     });
 
     const data = await res.json().catch(() => null);
+    if (DEBUG) {
+        try {
+            console.debug(`[SOCIAL_VIDEO] cobalt response: ok=${res.ok} status=${res.status} url=${rawUrl} endpoint=${endpoint}`);
+        } catch (_) {
+            // ignore
+        }
+    }
     if (!res.ok || !data) {
         const msg = data?.text || data?.error || `Cobalt request failed (${res.status})`;
         throw new Error(msg);
@@ -154,6 +189,28 @@ async function downloadToBufferWithLimit(directUrl) {
     return Buffer.concat(chunks, total);
 }
 
+function isTikTokUrl(rawUrl) {
+    try {
+        const u = new URL(rawUrl);
+        const host = u.hostname.toLowerCase();
+        return host === 'tiktok.com' || host.endsWith('.tiktok.com');
+    } catch (_) {
+        return false;
+    }
+}
+
+function rewriteTikTokHostname(rawUrl) {
+    const chosen = (process.env.TIKTOK_REWRITE_DOMAIN || 'd.tiktokez.com').trim();
+    const domain = chosen || 'd.tiktokez.com';
+    try {
+        const u = new URL(rawUrl);
+        u.hostname = domain;
+        return u.toString();
+    } catch (_) {
+        return rawUrl;
+    }
+}
+
 function formatCompactNumber(n) {
     if (typeof n !== 'number' || !Number.isFinite(n)) return null;
     if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
@@ -163,9 +220,25 @@ function formatCompactNumber(n) {
 }
 
 async function buildSourcedPayload({ message, url }) {
+    const resolvedUrl = await resolveFinalUrl(url);
     const stats = await getSocialStats(url);
 
-    const { directUrl, filename } = await cobaltDownload(url);
+    let dl;
+    try {
+        dl = await cobaltDownload(resolvedUrl);
+    } catch (e) {
+        if (isTikTokUrl(resolvedUrl)) {
+            const rewritten = rewriteTikTokHostname(resolvedUrl);
+            if (DEBUG) {
+                console.debug(`[SOCIAL_VIDEO] cobalt failed for tiktok; retry with rewrite: ${resolvedUrl} -> ${rewritten}`);
+            }
+            dl = await cobaltDownload(rewritten);
+        } else {
+            throw e;
+        }
+    }
+
+    const { directUrl, filename } = dl;
     const buffer = await downloadToBufferWithLimit(directUrl);
 
     const likesText = formatCompactNumber(stats.likes);

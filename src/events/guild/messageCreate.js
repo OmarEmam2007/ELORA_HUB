@@ -6,6 +6,8 @@ const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
 
+const SOCIAL_VIDEO_DEBUG = process.env.SOCIAL_VIDEO_DEBUG === '1';
+
 const INCOGNITO_CHANNEL_ID = '1484939016351645808';
 const INCOGNITO_LOGS_CHANNEL_ID = '1484940148994084934';
 const INCOGNITO_WEBHOOK_NAME = 'Incognito Room';
@@ -610,15 +612,33 @@ module.exports = {
                 const urls = extractCandidateUrls(content);
                 const url = urls.find((u) => isSupportedSocialVideoUrl(u));
 
+                if (SOCIAL_VIDEO_DEBUG) {
+                    try {
+                        console.debug(`[SOCIAL_VIDEO] msg=${message.id} author=${message.author?.id} channel=${message.channelId} urls=${urls.length} chosen=${url || 'none'}`);
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+
                 if (url) {
                     const now = Date.now();
                     const last = socialVideoCooldownByUser.get(message.author.id) || 0;
                     if (now - last < SOCIAL_VIDEO_COOLDOWN_MS) {
+                        if (SOCIAL_VIDEO_DEBUG) {
+                            console.debug(`[SOCIAL_VIDEO] cooldown: author=${message.author.id} remainingMs=${SOCIAL_VIDEO_COOLDOWN_MS - (now - last)}`);
+                        }
                         return;
                     }
                     socialVideoCooldownByUser.set(message.author.id, now);
 
+                    if (SOCIAL_VIDEO_DEBUG) {
+                        console.debug(`[SOCIAL_VIDEO] downloading: url=${url}`);
+                    }
                     const sourced = await buildSourcedPayload({ message, url });
+
+                    if (SOCIAL_VIDEO_DEBUG) {
+                        console.debug(`[SOCIAL_VIDEO] downloaded: bytes=${sourced?.buffer?.length || 0} filename=${sourced?.filename || 'unknown'}`);
+                    }
 
                     const embed = new EmbedBuilder()
                         .setColor(0x000000)
@@ -636,9 +656,15 @@ module.exports = {
                     const attachment = new AttachmentBuilder(sourced.buffer, { name: sourced.filename });
 
                     await message.channel.send({
+                        content: `**Sent by: ${sourced.postedByMention}**`,
                         embeds: [embed],
-                        files: [attachment]
+                        files: [attachment],
+                        allowedMentions: { users: [message.author.id] }
                     }).catch(() => { });
+
+                    if (SOCIAL_VIDEO_DEBUG) {
+                        console.debug(`[SOCIAL_VIDEO] sent: channel=${message.channelId} deletedOriginal=${Boolean(message.deletable)}`);
+                    }
 
                     if (message.deletable) {
                         await message.delete().catch(() => { });
