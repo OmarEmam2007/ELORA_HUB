@@ -1,4 +1,5 @@
 const { PermissionsBitField, AttachmentBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { createCanvas } = require('@napi-rs/canvas');
 const path = require('path');
 const fs = require('fs');
 
@@ -44,39 +45,154 @@ module.exports = {
 
         const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
 
+        const toSmallCaps = (input) => {
+            const map = {
+                a: 'ᴀ', b: 'ʙ', c: 'ᴄ', d: 'ᴅ', e: 'ᴇ', f: 'ꜰ', g: 'ɢ', h: 'ʜ', i: 'ɪ', j: 'ᴊ', k: 'ᴋ', l: 'ʟ', m: 'ᴍ',
+                n: 'ɴ', o: 'ᴏ', p: 'ᴘ', q: 'ǫ', r: 'ʀ', s: 'ꜱ', t: 'ᴛ', u: 'ᴜ', v: 'ᴠ', w: 'ᴡ', x: 'x', y: 'ʏ', z: 'ᴢ'
+            };
+            return String(input || '').split('').map((ch) => {
+                const lower = ch.toLowerCase();
+                return map[lower] || ch;
+            }).join('');
+        };
+
+        const SOLID = [
+            { key: 'black', name: 'Black', hex: '#121111' },
+            { key: 'white', name: 'White', hex: '#ffffff' },
+            { key: 'bloody_red', name: 'Bloody Red', hex: '#a30f0f' },
+            { key: 'purple', name: 'Purple', hex: '#9043d8' },
+            { key: 'pink', name: 'Pink', hex: '#cd1a98' },
+            { key: 'rose_pink', name: 'Rose Pink', hex: '#ff66cc' }
+        ];
+
+        const GRADIENT = [
+            { key: 'pure_lust', name: 'Pure Lust', a: '#333333', b: '#dd1818' },
+            { key: 'deep_space', name: 'Deep Space', a: '#000000', b: '#434343' },
+            { key: 'mauve', name: 'Mauve', a: '#42275a', b: '#734b6d' },
+            { key: 'delicate', name: 'Delicate', a: '#d3cce3', b: '#e9e4f0' },
+            { key: 'expresso', name: 'Expresso', a: '#ad5389', b: '#3c1053' },
+            { key: 'margo', name: 'Margo', a: '#ffefba', b: '#ffffff' }
+        ];
+
+        const paletteW = 1000;
+        const paletteH = 520;
+        const canvas = createCanvas(paletteW, paletteH);
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0b0b0f';
+        ctx.fillRect(0, 0, paletteW, paletteH);
+
+        const roundRect = (x, y, w, h, r) => {
+            const rr = Math.max(0, Math.min(r, Math.floor(Math.min(w, h) / 2)));
+            ctx.beginPath();
+            ctx.moveTo(x + rr, y);
+            ctx.arcTo(x + w, y, x + w, y + h, rr);
+            ctx.arcTo(x + w, y + h, x, y + h, rr);
+            ctx.arcTo(x, y + h, x, y, rr);
+            ctx.arcTo(x, y, x + w, y, rr);
+            ctx.closePath();
+        };
+
+        const drawTitle = (text, y) => {
+            ctx.save();
+            ctx.font = '700 22px Inter, Sans';
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.fillText(toSmallCaps(text), 56, y);
+            ctx.restore();
+        };
+
+        const drawSwatch = ({ x, y, label, fill }) => {
+            const w = 420;
+            const h = 56;
+            const r = 16;
+            const pad = 12;
+
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,0.55)';
+            ctx.shadowBlur = 14;
+            roundRect(x, y, w, h, r);
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.fill();
+            ctx.restore();
+
+            const box = 34;
+            const bx = x + pad;
+            const by = y + Math.floor((h - box) / 2);
+            ctx.save();
+            roundRect(bx, by, box, box, 10);
+            if (typeof fill === 'string') {
+                ctx.fillStyle = fill;
+            } else {
+                ctx.fillStyle = fill;
+            }
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.font = '650 18px Inter, Sans';
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.fillText(toSmallCaps(label), bx + box + 14, y + Math.floor(h * 0.66));
+            ctx.restore();
+        };
+
+        drawTitle('Solid Colors', 56);
+        drawTitle('Gradient Colors', 300);
+
+        let y1 = 82;
+        for (let i = 0; i < SOLID.length; i++) {
+            const c = SOLID[i];
+            drawSwatch({ x: 56, y: y1, label: c.name, fill: c.hex });
+            y1 += 64;
+        }
+
+        let y2 = 326;
+        for (let i = 0; i < GRADIENT.length; i++) {
+            const g = GRADIENT[i];
+            const grad = ctx.createLinearGradient(56, y2, 56 + 420, y2 + 56);
+            grad.addColorStop(0, g.a);
+            grad.addColorStop(1, g.b);
+            drawSwatch({ x: 56, y: y2, label: `${g.name} (${g.a.replace('#', '')}→${g.b.replace('#', '')})`, fill: grad });
+            y2 += 64;
+        }
+
+        const paletteFile = new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'colors-palette.png' });
+
         const solidMenu = new StringSelectMenuBuilder()
             .setCustomId('role_color_select')
-            .setPlaceholder('✦ SELECT YOUR COLOR')
+            .setPlaceholder(`✦ ${toSmallCaps('select your color')}`)
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
-                { label: '⬛ Black', value: 'black' },
-                { label: '⬜ White', value: 'white' },
-                { label: '🟥 Bloody Red', value: 'bloody_red' },
-                { label: '🟪 Purple', value: 'purple' },
-                { label: '🩷 Pink', value: 'pink' },
-                { label: '🩷🟥 Rose Pink', value: 'rose_pink' }
+                { label: toSmallCaps('Black'), value: 'black' },
+                { label: toSmallCaps('White'), value: 'white' },
+                { label: toSmallCaps('Bloody Red'), value: 'bloody_red' },
+                { label: toSmallCaps('Purple'), value: 'purple' },
+                { label: toSmallCaps('Pink'), value: 'pink' },
+                { label: toSmallCaps('Rose Pink'), value: 'rose_pink' }
             );
 
         const gradientMenu = new StringSelectMenuBuilder()
             .setCustomId('role_gradient_select')
-            .setPlaceholder('✦ SELECT YOUR GRADIENT')
+            .setPlaceholder(`✦ ${toSmallCaps('select your gradient')}`)
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
-                { label: '🩷🟪 Margo', value: 'margo' },
-                { label: '🟫⬛ Expresso', value: 'expresso' },
-                { label: '🟥🟪 Pure Lust', value: 'pure_lust' },
-                { label: '🩷⬜ Delicate', value: 'delicate' },
-                { label: '🟪🩷 Mauve', value: 'mauve' },
-                { label: '🟦⬛ Deep Space', value: 'deep_space' }
+                { label: toSmallCaps('Margo'), value: 'margo' },
+                { label: toSmallCaps('Expresso'), value: 'expresso' },
+                { label: toSmallCaps('Pure Lust'), value: 'pure_lust' },
+                { label: toSmallCaps('Delicate'), value: 'delicate' },
+                { label: toSmallCaps('Mauve'), value: 'mauve' },
+                { label: toSmallCaps('Deep Space'), value: 'deep_space' }
             );
 
         const row1 = new ActionRowBuilder().addComponents(solidMenu);
         const row2 = new ActionRowBuilder().addComponents(gradientMenu);
 
         await channel.send({ content: ' ', files: [banner] }).catch(() => { });
-        await channel.send({ components: [row1, row2] }).catch(() => { });
+        await channel.send({ content: ' ', files: [paletteFile], components: [row1, row2] }).catch(() => { });
 
         if (message.deletable) {
             await message.delete().catch(() => { });
