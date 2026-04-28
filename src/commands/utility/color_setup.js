@@ -1,7 +1,5 @@
 const { PermissionsBitField, AttachmentBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { createCanvas } = require('@napi-rs/canvas');
-const path = require('path');
-const fs = require('fs');
 
 module.exports = {
     name: 'color_setup',
@@ -30,20 +28,6 @@ module.exports = {
                 if (fetched && fetched.isTextBased?.()) channel = fetched;
             }
         }
-
-        const bannerName = 'new banner1.png';
-        const bannerCandidates = [
-            path.join(__dirname, '../../assets', bannerName),
-            path.join(__dirname, '../../../assets', bannerName),
-            path.join(process.cwd(), 'assets', bannerName),
-            path.join(process.cwd(), 'src', 'assets', bannerName),
-            path.join(process.cwd(), 'ELORA NEW THEME', bannerName)
-        ];
-        const bannerPath = bannerCandidates.find(p => {
-            try { return fs.existsSync(p); } catch (_) { return false; }
-        }) || bannerCandidates[0];
-
-        const banner = new AttachmentBuilder(bannerPath, { name: bannerName });
 
         const toSmallCaps = (input) => {
             const map = {
@@ -75,7 +59,7 @@ module.exports = {
         ];
 
         const paletteW = 1000;
-        const paletteH = 520;
+        const paletteH = 760;
         const canvas = createCanvas(paletteW, paletteH);
         const ctx = canvas.getContext('2d');
 
@@ -191,7 +175,6 @@ module.exports = {
         const row1 = new ActionRowBuilder().addComponents(solidMenu);
         const row2 = new ActionRowBuilder().addComponents(gradientMenu);
 
-        await channel.send({ content: ' ', files: [banner] }).catch(() => { });
         await channel.send({ content: ' ', files: [paletteFile], components: [row1, row2] }).catch(() => { });
 
         if (message.deletable) {
