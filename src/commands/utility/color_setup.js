@@ -1,22 +1,34 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { PermissionsBitField, AttachmentBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('color_setup')
-        .setDescription('Creates a color selection panel.')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addChannelOption(option =>
-            option
-                .setName('channel')
-                .setDescription('Channel to send the color panel')
-                .setRequired(true)
-                .addChannelTypes(ChannelType.GuildText)
-        ),
+    name: 'color_setup',
+    aliases: ['colorsetup'],
 
-    async execute(interaction) {
-        const channel = interaction.options.getChannel('channel', true);
+    async execute(message, client, args) {
+        if (!message?.guild) return;
+
+        const member = message.member;
+        const hasAdmin = Boolean(member?.permissions?.has?.(PermissionsBitField.Flags.Administrator));
+        if (!hasAdmin) {
+            await message.reply({ content: '❌ You do not have permission to use this command.' }).catch(() => { });
+            return;
+        }
+
+        let channel = message.channel;
+
+        const raw = String(args?.[0] || '').trim();
+        const mentioned = message.mentions?.channels?.first?.() || null;
+        if (mentioned && mentioned.isTextBased?.()) {
+            channel = mentioned;
+        } else if (raw) {
+            const id = raw.replace(/[^0-9]/g, '');
+            if (id) {
+                const fetched = await message.client.channels.fetch(id).catch(() => null);
+                if (fetched && fetched.isTextBased?.()) channel = fetched;
+            }
+        }
 
         const bannerName = 'new banner1.png';
         const bannerCandidates = [
@@ -66,6 +78,8 @@ module.exports = {
         await channel.send({ content: ' ', files: [banner] }).catch(() => { });
         await channel.send({ components: [row1, row2] }).catch(() => { });
 
-        await interaction.reply({ content: 'OK', ephemeral: true }).catch(() => { });
+        if (message.deletable) {
+            await message.delete().catch(() => { });
+        }
     }
 };
