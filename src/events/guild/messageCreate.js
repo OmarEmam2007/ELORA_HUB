@@ -401,16 +401,16 @@ module.exports = {
                         // If status is missing, we fall back to notifying.
                         shouldNotify = false;
                         if (DEBUG) {
-                            console.log(`[WIN_NOTIFY] skipped: target status is ${status}`);
+                            console.debug(`[WIN_NOTIFY] skipped: target status is ${status}`);
                         }
                     }
                     if (DEBUG && shouldNotify) {
-                        console.log(`[WIN_NOTIFY] target status: ${status || 'unknown'} (will notify)`);
+                        console.debug(`[WIN_NOTIFY] target status: ${status || 'unknown'} (will notify)`);
                     }
                 } catch (_) {
                     // ignore and continue
                     if (DEBUG) {
-                        console.log('[WIN_NOTIFY] target presence fetch failed (will notify)');
+                        console.debug('[WIN_NOTIFY] target presence fetch failed (will notify)');
                     }
                 }
 
@@ -430,7 +430,7 @@ module.exports = {
                 }
 
                 if (DEBUG && !type) {
-                    console.log('[WIN_NOTIFY] skipped: no mention/reply trigger');
+                    console.debug('[WIN_NOTIFY] skipped: no mention/reply trigger');
                 }
 
                 if (type && shouldNotify) {
@@ -441,7 +441,7 @@ module.exports = {
                     const iconUrl = message.author.displayAvatarURL({ extension: 'png', size: 128 });
 
                     if (DEBUG) {
-                        console.log(`[WIN_NOTIFY] send: type=${type} from=${message.author.tag} body=${JSON.stringify(body)}`);
+                        console.debug(`[WIN_NOTIFY] send: type=${type} from=${message.author.tag} body=${JSON.stringify(body)}`);
                     }
 
                     notifyWindowsToast({
@@ -452,11 +452,11 @@ module.exports = {
                         iconUrl,
                     }).catch(() => { });
                 } else if (type && !shouldNotify && DEBUG) {
-                    console.log(`[WIN_NOTIFY] skipped: trigger=${type} but target is not offline`);
+                    console.debug(`[WIN_NOTIFY] skipped: trigger=${type} but target is not offline`);
                 }
             } else {
                 if (process.env.WIN_NOTIFY_DEBUG === '1') {
-                    console.log(`[WIN_NOTIFY] skipped: guild mismatch ${message.guild.id}`);
+                    console.debug(`[WIN_NOTIFY] skipped: guild mismatch ${message.guild.id}`);
                 }
             }
         } catch (e) {

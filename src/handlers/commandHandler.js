@@ -107,6 +107,11 @@ async function loadCommands(client) {
 
     client.on('ready', async () => {
         try {
+            if (process.env.DISABLE_SLASH_REGISTER === '1') {
+                console.log('ℹ️ Skipping slash command registration: DISABLE_SLASH_REGISTER=1');
+                return;
+            }
+
             console.log(`ℹ️ Slash command registration check: commands=${commandsArray.length}`);
             if (!client?.application?.id) {
                 try {

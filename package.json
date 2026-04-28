@@ -4,6 +4,7 @@
   "main": "src/bot.js",
   "scripts": {
     "start": "node src/bot.js",
+    "deploy:guild": "node scripts/deployGuildCommands.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -1,5 +1,5 @@
 const User = require('../../models/User');
-const { EmbedBuilder, ChannelType } = require('discord.js');
+const { EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { getGuildLogChannel } = require('../../utils/getGuildLogChannel');
 const THEME = require('../../utils/theme');
 
@@ -181,18 +181,46 @@ module.exports = {
                         console.log(`[TempVoice] Created ${created.id} for ${member.user.tag} and moved them.`);
 
                         try {
-                            const CONTROL_PANEL_CHANNEL_ID = '1480944040517304371';
                             const embed = new EmbedBuilder()
                                 .setColor(client?.config?.colors?.primary || THEME?.COLORS?.PRIMARY || '#111827')
-                                .setDescription(`**Temp Voice is ready**\nUse the control panel in <#${CONTROL_PANEL_CHANNEL_ID}> to manage your channel.`)
-                                .setFooter({ text: '-ˋˏ✄┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈' });
+                                .setDescription('**Temp Voice Control**');
+
+                            const buttons = [
+                                new ButtonBuilder().setCustomId('tvcp_lock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('LOCK'),
+                                new ButtonBuilder().setCustomId('tvcp_unlock').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('OPEN'),
+                                new ButtonBuilder().setCustomId('tvcp_hide').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('HIDE'),
+                                new ButtonBuilder().setCustomId('tvcp_show').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('SHOW'),
+                                new ButtonBuilder().setCustomId('tvcp_bitrate').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('RATE'),
+
+                                new ButtonBuilder().setCustomId('tvcp_open_transfer_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('XFER'),
+                                new ButtonBuilder().setCustomId('tvcp_limit').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('LIMT'),
+                                new ButtonBuilder().setCustomId('tvcp_rename').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('NAME'),
+                                new ButtonBuilder().setCustomId('tvcp_move_me').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('JOIN'),
+                                new ButtonBuilder().setCustomId('tvcp_open_move_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('MOVE'),
+
+                                new ButtonBuilder().setCustomId('tvcp_open_mute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('MUTE'),
+                                new ButtonBuilder().setCustomId('tvcp_open_unmute_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('UNMT'),
+                                new ButtonBuilder().setCustomId('tvcp_open_deafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('DEAF'),
+                                new ButtonBuilder().setCustomId('tvcp_open_undeafen_menu').setStyle(ButtonStyle.Secondary).setEmoji('▫️').setLabel('UNDF'),
+                                new ButtonBuilder().setCustomId('tvcp_open_kick_menu').setStyle(ButtonStyle.Danger).setEmoji('▫️').setLabel('KICK')
+                            ];
+
+                            const rows = [];
+                            for (let i = 0; i < buttons.length; i += 5) {
+                                rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+                            }
+
+                            const payload = {
+                                content: `<@${member.id}>`,
+                                allowedMentions: { users: [member.id] },
+                                embeds: [embed],
+                                components: rows
+                            };
 
                             if (typeof created.send === 'function') {
-                                await created.send({
-                                    content: `<@${member.id}>`,
-                                    allowedMentions: { users: [member.id] },
-                                    embeds: [embed]
-                                }).catch(() => { });
+                                await created.send(payload).catch(() => { });
+                            } else {
+                                await member.send({ embeds: [embed], components: rows }).catch(() => { });
                             }
                         } catch (_) {
                             // Best-effort
