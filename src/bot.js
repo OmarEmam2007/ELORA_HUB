@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const { initLogging } = require('./utils/logger');
+initLogging();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, ActivityType, Collection } = require('discord.js');

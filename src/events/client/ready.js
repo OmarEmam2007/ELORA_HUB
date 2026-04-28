@@ -163,19 +163,19 @@ module.exports = {
                     console.log(`[VOICE] Joining voice: ${channel.guild.name} / ${channel.name} (${channel.id})`);
 
                     connection.on(VoiceConnectionStatus.Disconnected, async () => {
-                        console.log('[VOICE] Disconnected. Retrying...');
+                        console.debug('[VOICE] Disconnected. Retrying...');
                         setTimeout(() => ensureVoice().catch(() => { }), 3_000);
                     });
 
                     connection.on(VoiceConnectionStatus.Destroyed, async () => {
-                        console.log('[VOICE] Destroyed. Retrying...');
+                        console.debug('[VOICE] Destroyed. Retrying...');
                         setTimeout(() => ensureVoice().catch(() => { }), 3_000);
                     });
 
                     await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-                    console.log('[VOICE] Ready.');
+                    console.debug('[VOICE] Ready.');
                 } catch (_) {
-                    console.log('[VOICE] Join failed. Will retry...');
+                    console.debug('[VOICE] Join failed. Will retry...');
                 }
             };
 

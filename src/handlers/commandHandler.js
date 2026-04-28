@@ -18,9 +18,9 @@ async function loadCommands(client) {
             if (command.data) {
                 client.commands.set(command.data.name, command);
                 commandsArray.push(command.data.toJSON());
-                console.log(`✅ Successfully loaded: ${file}`);
+                console.debug(`✅ Successfully loaded: ${file}`);
                 if (file === 'confess.js') {
-                    console.log('[SUCCESS] confess.js is no longer empty and has been loaded');
+                    console.debug('[SUCCESS] confess.js is no longer empty and has been loaded');
                 }
             }
         }
@@ -70,6 +70,7 @@ async function loadCommands(client) {
 
     client.on('ready', async () => {
         try {
+            console.log(`ℹ️ Slash command registration check: commands=${commandsArray.length}`);
             if (!client?.application?.id) {
                 try {
                     await client.application?.fetch();
@@ -84,6 +85,8 @@ async function loadCommands(client) {
             }
 
             const guildId = process.env.GUILD_ID || client.config?.guildId;
+
+            console.log(`ℹ️ Slash command registration target: appId=${client.application.id} guildId=${guildId || 'N/A'}`);
 
             if (!guildId) {
                 console.log('ℹ️ Skipping slash command registration: missing GUILD_ID');
@@ -106,7 +109,9 @@ async function loadCommands(client) {
                 }
 
                 // Register to GUILD (Instant for development/primary server)
+                console.log(`ℹ️ Registering slash commands to guild: ${guild.name} (${guild.id})`);
                 await registerGuildCommandsSafely(guild);
+                console.log(`✅ Slash command registration finished for guild: ${guild.name}`);
             }
         } catch (error) {
             console.error('❌ Error registering slash commands:', error);
