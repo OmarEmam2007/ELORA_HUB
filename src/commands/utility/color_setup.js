@@ -58,13 +58,14 @@ module.exports = {
             { key: 'margo', name: 'Margo', a: '#ffefba', b: '#ffffff' }
         ];
 
-        const paletteW = 1000;
-        const paletteH = 760;
+        const paletteW = 1100;
+        const paletteH = 520;
         const canvas = createCanvas(paletteW, paletteH);
         const ctx = canvas.getContext('2d');
 
         ctx.fillStyle = '#0b0b0f';
         ctx.fillRect(0, 0, paletteW, paletteH);
+        ctx.textBaseline = 'middle';
 
         const roundRect = (x, y, w, h, r) => {
             const rr = Math.max(0, Math.min(r, Math.floor(Math.min(w, h) / 2)));
@@ -77,69 +78,70 @@ module.exports = {
             ctx.closePath();
         };
 
-        const drawTitle = (text, y) => {
+        const drawTitle = (text, x, y) => {
             ctx.save();
-            ctx.font = '700 22px Inter, Sans';
+            ctx.font = '700 22px Sans';
             ctx.fillStyle = 'rgba(255,255,255,0.92)';
-            ctx.fillText(toSmallCaps(text), 56, y);
+            ctx.fillText(String(text), x, y);
             ctx.restore();
         };
 
         const drawSwatch = ({ x, y, label, fill }) => {
-            const w = 420;
-            const h = 56;
+            const w = 480;
+            const h = 58;
             const r = 16;
             const pad = 12;
 
             ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,0.55)';
-            ctx.shadowBlur = 14;
             roundRect(x, y, w, h, r);
             ctx.fillStyle = 'rgba(255,255,255,0.06)';
             ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+            ctx.stroke();
             ctx.restore();
 
-            const box = 34;
+            const box = 36;
             const bx = x + pad;
             const by = y + Math.floor((h - box) / 2);
             ctx.save();
             roundRect(bx, by, box, box, 10);
-            if (typeof fill === 'string') {
-                ctx.fillStyle = fill;
-            } else {
-                ctx.fillStyle = fill;
-            }
+            ctx.fillStyle = fill;
             ctx.fill();
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)';
             ctx.stroke();
             ctx.restore();
 
             ctx.save();
-            ctx.font = '650 18px Inter, Sans';
-            ctx.fillStyle = 'rgba(255,255,255,0.82)';
-            ctx.fillText(toSmallCaps(label), bx + box + 14, y + Math.floor(h * 0.66));
+            ctx.font = '650 18px Sans';
+            ctx.fillStyle = 'rgba(255,255,255,0.86)';
+            ctx.fillText(String(label), bx + box + 14, y + Math.floor(h / 2));
             ctx.restore();
         };
 
-        drawTitle('Solid Colors', 56);
-        drawTitle('Gradient Colors', 300);
+        const leftX = 56;
+        const rightX = 56 + 520;
+        const titleY = 50;
+        const startY = 78;
+        const gapY = 68;
 
-        let y1 = 82;
+        drawTitle('Solid Colors', leftX, titleY);
+        drawTitle('Gradient Colors', rightX, titleY);
+
         for (let i = 0; i < SOLID.length; i++) {
             const c = SOLID[i];
-            drawSwatch({ x: 56, y: y1, label: c.name, fill: c.hex });
-            y1 += 64;
+            const y = startY + i * gapY;
+            drawSwatch({ x: leftX, y, label: c.name, fill: c.hex });
         }
 
-        let y2 = 326;
         for (let i = 0; i < GRADIENT.length; i++) {
             const g = GRADIENT[i];
-            const grad = ctx.createLinearGradient(56, y2, 56 + 420, y2 + 56);
+            const y = startY + i * gapY;
+            const grad = ctx.createLinearGradient(rightX, y, rightX + 480, y + 58);
             grad.addColorStop(0, g.a);
             grad.addColorStop(1, g.b);
-            drawSwatch({ x: 56, y: y2, label: `${g.name} (${g.a.replace('#', '')}→${g.b.replace('#', '')})`, fill: grad });
-            y2 += 64;
+            drawSwatch({ x: rightX, y, label: g.name, fill: grad });
         }
 
         const paletteFile = new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'colors-palette.png' });
