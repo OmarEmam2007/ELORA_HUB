@@ -32,6 +32,18 @@ async function loadCommands(client) {
 
     const registerGuildCommandsSafely = async (guild) => {
         try {
+            const withTimeout = async (promise, ms, label) => {
+                let t;
+                const timeout = new Promise((_, reject) => {
+                    t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+                });
+                try {
+                    return await Promise.race([promise, timeout]);
+                } finally {
+                    clearTimeout(t);
+                }
+            };
+
             const token = process.env.DISCORD_TOKEN;
             if (!token) throw new Error('Missing DISCORD_TOKEN for slash command registration');
             const rest = new REST({ version: '10' }).setToken(token);
@@ -41,11 +53,17 @@ async function loadCommands(client) {
 
             // Do not clear commands before we know the payload is valid.
             // A failed bulk registration (e.g., 50035) would otherwise wipe all guild commands.
-            await rest.put(Routes.applicationGuildCommands(appId, guild.id), { body: commandsArray });
+            console.log(`ℹ️ Slash register REST PUT: guild=${guild.id} commands=${commandsArray.length}`);
+            await withTimeout(
+                rest.put(Routes.applicationGuildCommands(appId, guild.id), { body: commandsArray }),
+                20_000,
+                'Slash command registration (REST PUT)'
+            );
 
             console.log(`✅ Slash Commands Registered to Guild: ${guild.name}`);
             return;
         } catch (error) {
+            console.error('❌ Slash command registration failed:', error);
             // If Discord rejects the bulk payload, find the offending command.
             if (error?.code === 50035) {
                 console.error('❌ Bulk guild command registration failed (50035). Locating invalid command...');
