@@ -258,6 +258,48 @@ module.exports = {
             console.error('❌ Invite cache init error:', e);
         }
 
+        try {
+            const JailRecord = require('../../models/JailRecord');
+            const Unjail = require('../../commands/utility/unjail');
+
+            const tick = async () => {
+                const now = new Date();
+                let due = [];
+                try {
+                    due = await JailRecord.find({ active: true, releaseAt: { $ne: null, $lte: now } }).lean().catch(() => []);
+                } catch (_) {
+                    due = [];
+                }
+
+                if (!due.length) return;
+
+                for (const rec of due) {
+                    const guild = client.guilds.cache.get(rec.guildId) || await client.guilds.fetch(rec.guildId).catch(() => null);
+                    if (!guild) {
+                        await JailRecord.updateOne({ _id: rec._id }, { $set: { active: false } }).catch(() => { });
+                        continue;
+                    }
+
+                    try {
+                        if (typeof Unjail.__unjailMemberById === 'function') {
+                            await Unjail.__unjailMemberById(guild, rec.userId, { reason: 'Auto unjail (scheduler)' });
+                        }
+                    } catch (_) {
+                        try {
+                            await JailRecord.updateOne({ _id: rec._id }, { $set: { active: false } }).catch(() => { });
+                        } catch (_) {
+                            // ignore
+                        }
+                    }
+                }
+            };
+
+            setTimeout(() => tick().catch(() => { }), 10_000);
+            setInterval(() => tick().catch(() => { }), 60_000);
+        } catch (_) {
+            // ignore
+        }
+
         // --- 🎫 Invite Reward Roles Sync (highest-tier-only) ---
         // Fixes existing members who already had multiple tiers from older logic.
         try {
