@@ -19,8 +19,11 @@ async function loadPrefixCommands(client) {
             .filter(file => file.endsWith('.js'))
             .filter(file => file !== 'pic.js')
             .filter(file => file !== 'reset.js');
+
+        const blocked = new Set(['jail.js', 'unjail.js']);
+        const filteredFiles = files.filter((f) => !blocked.has(f));
         
-        for (const file of files) {
+        for (const file of filteredFiles) {
             try {
                 const command = require(`../commands/${folder}/${file}`);
                 // Support both prefix-style (.name) and slash-style (.data.name)
