@@ -44,6 +44,8 @@ async function loadCommands(client) {
                 }
             };
 
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
             const token = process.env.DISCORD_TOKEN;
             if (!token) throw new Error('Missing DISCORD_TOKEN for slash command registration');
             const rest = new REST({ version: '10' }).setToken(token);
@@ -54,11 +56,28 @@ async function loadCommands(client) {
             // Do not clear commands before we know the payload is valid.
             // A failed bulk registration (e.g., 50035) would otherwise wipe all guild commands.
             console.log(`ℹ️ Slash register REST PUT: guild=${guild.id} commands=${commandsArray.length}`);
-            await withTimeout(
-                rest.put(Routes.applicationGuildCommands(appId, guild.id), { body: commandsArray }),
-                20_000,
-                'Slash command registration (REST PUT)'
-            );
+
+            const maxAttempts = 3;
+            let lastErr;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    if (attempt > 1) console.log(`ℹ️ Slash register retry attempt ${attempt}/${maxAttempts}...`);
+
+                    await withTimeout(
+                        rest.put(Routes.applicationGuildCommands(appId, guild.id), { body: commandsArray }),
+                        60_000,
+                        'Slash command registration (REST PUT)'
+                    );
+
+                    lastErr = null;
+                    break;
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt < maxAttempts) await sleep(1_500 * attempt);
+                }
+            }
+
+            if (lastErr) throw lastErr;
 
             console.log(`✅ Slash Commands Registered to Guild: ${guild.name}`);
             return;
