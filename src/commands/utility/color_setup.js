@@ -78,22 +78,11 @@ module.exports = {
             ctx.closePath();
         };
 
-        const drawTitle = (text, x, y) => {
-            ctx.save();
-            ctx.font = '700 22px Sans';
-            ctx.fillStyle = 'rgba(255,255,255,0.92)';
-            ctx.fillText(String(text), x, y);
-            ctx.restore();
-        };
-
-        const drawSwatch = ({ x, y, label, fill }) => {
-            const w = 480;
-            const h = 58;
-            const r = 16;
-            const pad = 12;
+        const drawSwatch = ({ x, y, w, h, r, fill }) => {
+            const radius = Number.isFinite(r) ? r : 16;
 
             ctx.save();
-            roundRect(x, y, w, h, r);
+            roundRect(x, y, w, h, radius);
             ctx.fillStyle = 'rgba(255,255,255,0.06)';
             ctx.fill();
             ctx.lineWidth = 1;
@@ -101,47 +90,38 @@ module.exports = {
             ctx.stroke();
             ctx.restore();
 
-            const box = 36;
-            const bx = x + pad;
-            const by = y + Math.floor((h - box) / 2);
+            const inset = 10;
             ctx.save();
-            roundRect(bx, by, box, box, 10);
+            roundRect(x + inset, y + inset, w - inset * 2, h - inset * 2, Math.max(10, radius - 4));
             ctx.fillStyle = fill;
             ctx.fill();
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
             ctx.stroke();
-            ctx.restore();
-
-            ctx.save();
-            ctx.font = '650 18px Sans';
-            ctx.fillStyle = 'rgba(255,255,255,0.86)';
-            ctx.fillText(String(label), bx + box + 14, y + Math.floor(h / 2));
             ctx.restore();
         };
 
         const leftX = 56;
         const rightX = 56 + 520;
-        const titleY = 50;
-        const startY = 78;
-        const gapY = 68;
-
-        drawTitle('Solid Colors', leftX, titleY);
-        drawTitle('Gradient Colors', rightX, titleY);
+        const startY = 48;
+        const gapY = 76;
+        const swW = 480;
+        const swH = 66;
+        const swR = 18;
 
         for (let i = 0; i < SOLID.length; i++) {
             const c = SOLID[i];
             const y = startY + i * gapY;
-            drawSwatch({ x: leftX, y, label: c.name, fill: c.hex });
+            drawSwatch({ x: leftX, y, w: swW, h: swH, r: swR, fill: c.hex });
         }
 
         for (let i = 0; i < GRADIENT.length; i++) {
             const g = GRADIENT[i];
             const y = startY + i * gapY;
-            const grad = ctx.createLinearGradient(rightX, y, rightX + 480, y + 58);
+            const grad = ctx.createLinearGradient(rightX, y, rightX + swW, y + swH);
             grad.addColorStop(0, g.a);
             grad.addColorStop(1, g.b);
-            drawSwatch({ x: rightX, y, label: g.name, fill: grad });
+            drawSwatch({ x: rightX, y, w: swW, h: swH, r: swR, fill: grad });
         }
 
         const paletteFile = new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'colors-palette.png' });
