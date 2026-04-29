@@ -957,9 +957,14 @@ module.exports = {
                 deep_space: '1498796924965228695'
             };
 
-            const member = interaction.member;
-            if (!member || !member.roles?.cache) {
-                return;
+            let member = null;
+            try {
+                member = await interaction.guild.members.fetch(interaction.user.id);
+            } catch (_) {
+                member = interaction.member;
+            }
+            if (!member || !member.roles) {
+                return safeEdit({ content: `**${toSmallCaps('FAILED TO LOAD MEMBER')}**` });
             }
 
             const value = interaction.values?.[0];
@@ -1016,11 +1021,19 @@ module.exports = {
                 const roleId = SOLID_COLOR_ROLE_IDS[value];
                 if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
 
-                const toRemove = Object.values(SOLID_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                const toRemove = Object.values(SOLID_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache?.has?.(id));
                 if (toRemove.length) {
-                    await member.roles.remove(toRemove).catch(() => { });
+                    try {
+                        await member.roles.remove(toRemove);
+                    } catch (e) {
+                        return safeEdit({ content: `**${toSmallCaps('FAILED TO REMOVE OLD COLOR')}**\n${String(e?.message || e).slice(0, 180)}` });
+                    }
                 }
-                await member.roles.add(roleId).catch(() => { });
+                try {
+                    await member.roles.add(roleId);
+                } catch (e) {
+                    return safeEdit({ content: `**${toSmallCaps('FAILED TO ADD COLOR')}**\n${String(e?.message || e).slice(0, 180)}` });
+                }
                 return safeEdit({ content: `${okPrefix}**${toSmallCaps('COLOR UPDATED')}**` });
             }
 
@@ -1028,11 +1041,19 @@ module.exports = {
                 const roleId = GRADIENT_COLOR_ROLE_IDS[value];
                 if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
 
-                const toRemove = Object.values(GRADIENT_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache.has(id));
+                const toRemove = Object.values(GRADIENT_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache?.has?.(id));
                 if (toRemove.length) {
-                    await member.roles.remove(toRemove).catch(() => { });
+                    try {
+                        await member.roles.remove(toRemove);
+                    } catch (e) {
+                        return safeEdit({ content: `**${toSmallCaps('FAILED TO REMOVE OLD GRADIENT')}**\n${String(e?.message || e).slice(0, 180)}` });
+                    }
                 }
-                await member.roles.add(roleId).catch(() => { });
+                try {
+                    await member.roles.add(roleId);
+                } catch (e) {
+                    return safeEdit({ content: `**${toSmallCaps('FAILED TO ADD GRADIENT')}**\n${String(e?.message || e).slice(0, 180)}` });
+                }
                 return safeEdit({ content: `${okPrefix}**${toSmallCaps('GRADIENT UPDATED')}**` });
             }
         }
