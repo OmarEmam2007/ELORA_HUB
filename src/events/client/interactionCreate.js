@@ -1018,10 +1018,30 @@ module.exports = {
             }
 
             if (interaction.customId === 'role_color_select') {
+                if (value === 'reset') {
+                    const toRemove = [
+                        ...Object.values(SOLID_COLOR_ROLE_IDS),
+                        ...Object.values(GRADIENT_COLOR_ROLE_IDS)
+                    ].filter((id) => member.roles.cache?.has?.(id));
+
+                    if (toRemove.length) {
+                        try {
+                            await member.roles.remove(toRemove);
+                        } catch (e) {
+                            return safeEdit({ content: `**${toSmallCaps('FAILED TO RESET COLOR')}**\n${String(e?.message || e).slice(0, 180)}` });
+                        }
+                    }
+
+                    return safeEdit({ content: `${okPrefix}**${toSmallCaps('COLOR RESET')}**` });
+                }
+
                 const roleId = SOLID_COLOR_ROLE_IDS[value];
                 if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
 
-                const toRemove = Object.values(SOLID_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache?.has?.(id));
+                const toRemove = [
+                    ...Object.values(SOLID_COLOR_ROLE_IDS),
+                    ...Object.values(GRADIENT_COLOR_ROLE_IDS)
+                ].filter((id) => id !== roleId && member.roles.cache?.has?.(id));
                 if (toRemove.length) {
                     try {
                         await member.roles.remove(toRemove);
@@ -1038,10 +1058,30 @@ module.exports = {
             }
 
             if (interaction.customId === 'role_gradient_select') {
+                if (value === 'reset') {
+                    const toRemove = [
+                        ...Object.values(GRADIENT_COLOR_ROLE_IDS),
+                        ...Object.values(SOLID_COLOR_ROLE_IDS)
+                    ].filter((id) => member.roles.cache?.has?.(id));
+
+                    if (toRemove.length) {
+                        try {
+                            await member.roles.remove(toRemove);
+                        } catch (e) {
+                            return safeEdit({ content: `**${toSmallCaps('FAILED TO RESET COLOR')}**\n${String(e?.message || e).slice(0, 180)}` });
+                        }
+                    }
+
+                    return safeEdit({ content: `${okPrefix}**${toSmallCaps('COLOR RESET')}**` });
+                }
+
                 const roleId = GRADIENT_COLOR_ROLE_IDS[value];
                 if (!roleId) return safeEdit({ content: `**${toSmallCaps('INVALID SELECTION')}**` });
 
-                const toRemove = Object.values(GRADIENT_COLOR_ROLE_IDS).filter((id) => id !== roleId && member.roles.cache?.has?.(id));
+                const toRemove = [
+                    ...Object.values(GRADIENT_COLOR_ROLE_IDS),
+                    ...Object.values(SOLID_COLOR_ROLE_IDS)
+                ].filter((id) => id !== roleId && member.roles.cache?.has?.(id));
                 if (toRemove.length) {
                     try {
                         await member.roles.remove(toRemove);

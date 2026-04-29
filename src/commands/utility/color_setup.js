@@ -132,6 +132,7 @@ module.exports = {
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
+                { label: toSmallCaps('Reset'), value: 'reset' },
                 { label: toSmallCaps('Black'), value: 'black' },
                 { label: toSmallCaps('White'), value: 'white' },
                 { label: toSmallCaps('Bloody Red'), value: 'bloody_red' },
@@ -146,6 +147,7 @@ module.exports = {
             .setMinValues(1)
             .setMaxValues(1)
             .addOptions(
+                { label: toSmallCaps('Reset'), value: 'reset' },
                 { label: toSmallCaps('Margo'), value: 'margo' },
                 { label: toSmallCaps('Expresso'), value: 'expresso' },
                 { label: toSmallCaps('Pure Lust'), value: 'pure_lust' },
