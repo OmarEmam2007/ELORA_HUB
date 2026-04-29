@@ -115,6 +115,192 @@ const TVCP = {
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
+        // --- 🕌 Gamified Dhikr System ---
+        try {
+            const dhikrService = require('../../services/dhikrService');
+            const DhikrProfile = require('../../models/DhikrProfile');
+            const AzkarCmd = require('../../commands/utility/اذكار');
+
+            const DHIKR_CHANNEL_ID = '1498787130250625065';
+            const ROLE_MOAZEB = '1499003787979915364';
+
+            const safeReply = async (payload) => {
+                try {
+                    if (interaction.deferred || interaction.replied) return await interaction.followUp(payload);
+                    return await interaction.reply(payload);
+                } catch (_) { }
+            };
+
+            const safeUpdate = async (payload) => {
+                try {
+                    return await interaction.update(payload);
+                } catch (_) {
+                    return safeReply(payload);
+                }
+            };
+
+            if (interaction.isButton?.()) {
+                const id = String(interaction.customId || '');
+
+                // Global counter buttons
+                if (id.startsWith('dhikr_global:')) {
+                    if (!interaction.guild) return;
+                    if (interaction.channelId !== DHIKR_CHANNEL_ID) {
+                        return safeReply({ content: '❌ This panel can only be used in the dhikr channel.', ephemeral: true });
+                    }
+
+                    const type = id.split(':')[1];
+                    if (!['subhan', 'hamd', 'takbir'].includes(type)) {
+                        return safeReply({ content: '❌ Invalid button.', ephemeral: true });
+                    }
+
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                    const doc = await dhikrService.incGlobal({
+                        guildId: interaction.guild.id,
+                        channelId: interaction.channelId,
+                        type
+                    });
+
+                    await dhikrService.incUserPoints({
+                        guildId: interaction.guild.id,
+                        userId: interaction.user.id,
+                        points: 1
+                    });
+
+                    await dhikrService.scheduleGlobalMessageRefresh({ client: interaction.client, doc });
+                    return safeReply({ content: '✅ +1', ephemeral: true });
+                }
+
+                // DM personal mode
+                if (id.startsWith('dhikr_dm:')) {
+                    if (interaction.inGuild?.()) {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    } else {
+                        await interaction.deferUpdate().catch(() => { });
+                    }
+
+                    const parts = id.split(':');
+                    const action = parts[1];
+                    const mode = parts[2];
+                    const idxRaw = parts[3];
+                    const idx = idxRaw ? Number(idxRaw) : 0;
+                    const explicitGuildId = parts[4] || null;
+
+                    if (action === 'start' && (mode === 'morning' || mode === 'evening')) {
+                        const pages = AzkarCmd.PAGES?.[mode] || [];
+                        if (!pages.length) return safeReply({ content: '❌ No pages configured.', ephemeral: true });
+
+                        const guildId = interaction.guild?.id || explicitGuildId;
+                        if (!guildId) {
+                            return safeReply({ content: '❌ Missing guild context.', ephemeral: true });
+                        }
+
+                        const prof = await DhikrProfile.findOneAndUpdate(
+                            { guildId, userId: interaction.user.id },
+                            { $setOnInsert: { guildId, userId: interaction.user.id } },
+                            { upsert: true, new: true }
+                        ).catch(() => null);
+
+                        const embed = AzkarCmd.buildSessionEmbed({
+                            mode,
+                            pageIndex: 0,
+                            totalPages: pages.length,
+                            text: pages[0],
+                            pointsWeekly: prof?.pointsWeekly || 0
+                        });
+
+                        const row = new (require('discord.js').ActionRowBuilder)().addComponents(
+                            new (require('discord.js').ButtonBuilder)()
+                                .setCustomId(`dhikr_dm:done:${mode}:0:${guildId}`)
+                                .setStyle(require('discord.js').ButtonStyle.Secondary)
+                                .setLabel('تم'),
+                            new (require('discord.js').ButtonBuilder)()
+                                .setCustomId(`dhikr_dm:close:${mode}:0:${guildId}`)
+                                .setStyle(require('discord.js').ButtonStyle.Secondary)
+                                .setLabel('إغلاق')
+                        );
+
+                        await safeUpdate({ embeds: [embed], components: [row] });
+                        return;
+                    }
+
+                    if (action === 'close') {
+                        return safeUpdate({ content: '✅ تم الإغلاق.', embeds: [], components: [] });
+                    }
+
+                    if (action === 'done' && (mode === 'morning' || mode === 'evening')) {
+                        const pages = AzkarCmd.PAGES?.[mode] || [];
+                        if (!pages.length) return safeReply({ content: '❌ No pages configured.', ephemeral: true });
+
+                        const guildId = interaction.guild?.id || explicitGuildId;
+                        if (!guildId) {
+                            return safeReply({ content: '❌ Missing guild context.', ephemeral: true });
+                        }
+
+                        const nextIndex = idx + 1;
+
+                        // Completed full session
+                        if (nextIndex >= pages.length) {
+                            await dhikrService.incUserPoints({ guildId, userId: interaction.user.id, points: 50 });
+
+                            const key = dhikrService.getDateKey(new Date());
+                            const update = mode === 'morning'
+                                ? { $set: { lastMorningCompleteKey: key, lastUpdatedAt: new Date() } }
+                                : { $set: { lastEveningCompleteKey: key, lastUpdatedAt: new Date() } };
+                            await DhikrProfile.findOneAndUpdate(
+                                { guildId, userId: interaction.user.id },
+                                { $setOnInsert: { guildId, userId: interaction.user.id }, ...update },
+                                { upsert: true, new: true }
+                            ).catch(() => null);
+
+                            const g = await interaction.client.guilds.fetch(guildId).catch(() => null);
+                            const m = g ? await g.members.fetch(interaction.user.id).catch(() => null) : null;
+                            if (m) {
+                                await m.roles.add(ROLE_MOAZEB).catch(() => { });
+                            }
+
+                            const doneEmbed = new (require('discord.js').EmbedBuilder)()
+                                .setColor(require('../../utils/theme').COLORS.SUCCESS)
+                                .setTitle('تقبل الله')
+                                .setDescription('✅ تم إنهاء الأذكار كاملة. تم إضافة النقاط.')
+                                .setTimestamp();
+
+                            return safeUpdate({ embeds: [doneEmbed], components: [] });
+                        }
+
+                        await dhikrService.incUserPoints({ guildId, userId: interaction.user.id, points: 1 });
+
+                        const prof = await DhikrProfile.findOne({ guildId, userId: interaction.user.id }).catch(() => null);
+
+                        const embed = AzkarCmd.buildSessionEmbed({
+                            mode,
+                            pageIndex: nextIndex,
+                            totalPages: pages.length,
+                            text: pages[nextIndex],
+                            pointsWeekly: prof?.pointsWeekly || 0
+                        });
+
+                        const row = new (require('discord.js').ActionRowBuilder)().addComponents(
+                            new (require('discord.js').ButtonBuilder)()
+                                .setCustomId(`dhikr_dm:done:${mode}:${nextIndex}:${guildId}`)
+                                .setStyle(require('discord.js').ButtonStyle.Secondary)
+                                .setLabel('تم'),
+                            new (require('discord.js').ButtonBuilder)()
+                                .setCustomId(`dhikr_dm:close:${mode}:${nextIndex}:${guildId}`)
+                                .setStyle(require('discord.js').ButtonStyle.Secondary)
+                                .setLabel('إغلاق')
+                        );
+
+                        await safeUpdate({ embeds: [embed], components: [row] });
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[DHIKR] Interaction error:', e);
+        }
+
         // --- ▫️ Giveaway System Interactions (Staff + Public) ---
         try {
             if (interaction.isButton() || interaction.isModalSubmit()) {
