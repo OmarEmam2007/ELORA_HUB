@@ -705,6 +705,15 @@ module.exports = {
 
                     if (message.deletable) {
                         await message.delete().catch(() => { });
+                    } else if (SOCIAL_VIDEO_DEBUG) {
+                        try {
+                            const me = message.guild?.members?.me || (await message.guild?.members?.fetchMe?.().catch(() => null));
+                            const perms = message.channel?.permissionsFor?.(me);
+                            const canManage = Boolean(perms?.has?.(require('discord.js').PermissionsBitField.Flags.ManageMessages));
+                            console.debug(`[SOCIAL_VIDEO] original message not deletable. canManageMessages=${canManage} channel=${message.channelId}`);
+                        } catch (_) {
+                            // ignore
+                        }
                     }
                     return;
                 }
