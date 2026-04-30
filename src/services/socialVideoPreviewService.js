@@ -111,8 +111,9 @@ async function getSocialStats(rawUrl) {
     return { likes: null, shares: null };
 }
 
-async function cobaltDownload(rawUrl) {
+async function cobaltDownload(rawUrl, { vQuality } = {}) {
     const endpoint = (process.env.COBALT_API_URL || 'https://api.cobalt.tools/api/json').trim();
+    const quality = (vQuality || '720').toString();
 
     const res = await fetch(endpoint, {
         method: 'POST',
@@ -124,7 +125,7 @@ async function cobaltDownload(rawUrl) {
         body: JSON.stringify({
             url: rawUrl,
             vCodec: 'h264',
-            vQuality: '720',
+            vQuality: quality,
             aFormat: 'mp3'
         })
     });
@@ -150,6 +151,28 @@ async function cobaltDownload(rawUrl) {
 
     const filename = (data?.filename || data?.fileName || 'sourced.mp4').toString();
     return { directUrl: String(directUrl), filename };
+}
+
+async function cobaltDownloadWithQualityFallback(rawUrl, { qualities } = {}) {
+    const q = Array.isArray(qualities) && qualities.length ? qualities : ['720', '480', '360'];
+
+    let lastErr = null;
+    for (const vQuality of q) {
+        try {
+            const dl = await cobaltDownload(rawUrl, { vQuality });
+            return { ...dl, vQuality: String(vQuality) };
+        } catch (e) {
+            lastErr = e;
+            if (DEBUG) {
+                try {
+                    console.debug(`[SOCIAL_VIDEO] cobalt failed (quality=${vQuality}) url=${rawUrl} err=${String(e?.message || e)}`);
+                } catch (_) {
+                    // ignore
+                }
+            }
+        }
+    }
+    throw lastErr || new Error('Cobalt request failed');
 }
 
 async function downloadToBufferWithLimit(directUrl) {
@@ -225,14 +248,14 @@ async function buildSourcedPayload({ message, url }) {
 
     let dl;
     try {
-        dl = await cobaltDownload(resolvedUrl);
+        dl = await cobaltDownloadWithQualityFallback(resolvedUrl);
     } catch (e) {
         if (isTikTokUrl(resolvedUrl)) {
             const rewritten = rewriteTikTokHostname(resolvedUrl);
             if (DEBUG) {
                 console.debug(`[SOCIAL_VIDEO] cobalt failed for tiktok; retry with rewrite: ${resolvedUrl} -> ${rewritten}`);
             }
-            dl = await cobaltDownload(rewritten);
+            dl = await cobaltDownloadWithQualityFallback(rewritten);
         } else {
             throw e;
         }
@@ -248,6 +271,7 @@ async function buildSourcedPayload({ message, url }) {
         buffer,
         filename: filename.toLowerCase().endsWith('.mp4') ? filename : 'sourced.mp4',
         directUrl,
+        vQuality: dl?.vQuality || null,
         likes: likesText,
         shares: sharesText,
         postedByMention: `<@${message.author.id}>`
@@ -260,14 +284,14 @@ async function buildSourcedDirectUrlPayload({ message, url }) {
 
     let dl;
     try {
-        dl = await cobaltDownload(resolvedUrl);
+        dl = await cobaltDownloadWithQualityFallback(resolvedUrl);
     } catch (e) {
         if (isTikTokUrl(resolvedUrl)) {
             const rewritten = rewriteTikTokHostname(resolvedUrl);
             if (DEBUG) {
                 console.debug(`[SOCIAL_VIDEO] cobalt failed for tiktok; retry with rewrite: ${resolvedUrl} -> ${rewritten}`);
             }
-            dl = await cobaltDownload(rewritten);
+            dl = await cobaltDownloadWithQualityFallback(rewritten);
         } else {
             throw e;
         }
@@ -282,6 +306,7 @@ async function buildSourcedDirectUrlPayload({ message, url }) {
     return {
         directUrl,
         filename: filename.toLowerCase().endsWith('.mp4') ? filename : 'sourced.mp4',
+        vQuality: dl?.vQuality || null,
         likes: likesText,
         shares: sharesText,
         postedByMention: `<@${message.author.id}>`
