@@ -247,6 +247,41 @@ async function buildSourcedPayload({ message, url }) {
     return {
         buffer,
         filename: filename.toLowerCase().endsWith('.mp4') ? filename : 'sourced.mp4',
+        directUrl,
+        likes: likesText,
+        shares: sharesText,
+        postedByMention: `<@${message.author.id}>`
+    };
+}
+
+async function buildSourcedDirectUrlPayload({ message, url }) {
+    const resolvedUrl = await resolveFinalUrl(url);
+    const stats = await getSocialStats(url);
+
+    let dl;
+    try {
+        dl = await cobaltDownload(resolvedUrl);
+    } catch (e) {
+        if (isTikTokUrl(resolvedUrl)) {
+            const rewritten = rewriteTikTokHostname(resolvedUrl);
+            if (DEBUG) {
+                console.debug(`[SOCIAL_VIDEO] cobalt failed for tiktok; retry with rewrite: ${resolvedUrl} -> ${rewritten}`);
+            }
+            dl = await cobaltDownload(rewritten);
+        } else {
+            throw e;
+        }
+    }
+
+    const likesText = formatCompactNumber(stats.likes);
+    const sharesText = formatCompactNumber(stats.shares);
+
+    const directUrl = String(dl?.directUrl || '');
+    const filename = (dl?.filename || 'sourced.mp4').toString();
+
+    return {
+        directUrl,
+        filename: filename.toLowerCase().endsWith('.mp4') ? filename : 'sourced.mp4',
         likes: likesText,
         shares: sharesText,
         postedByMention: `<@${message.author.id}>`
@@ -257,5 +292,6 @@ module.exports = {
     extractCandidateUrls,
     isSupportedSocialVideoUrl,
     buildSourcedPayload,
+    buildSourcedDirectUrlPayload,
     MAX_BYTES
 };

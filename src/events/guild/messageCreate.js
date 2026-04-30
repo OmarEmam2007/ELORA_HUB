@@ -1,10 +1,11 @@
-const { extractCandidateUrls, isSupportedSocialVideoUrl, buildSourcedPayload } = require('../../services/socialVideoPreviewService');
+const { extractCandidateUrls, isSupportedSocialVideoUrl, buildSourcedPayload, buildSourcedDirectUrlPayload } = require('../../services/socialVideoPreviewService');
 const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const Bump = require('../../models/Bump');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
+const { unfurlSocialLink } = require('../../services/socialUnfurlService');
 
 const SOCIAL_VIDEO_DEBUG = process.env.SOCIAL_VIDEO_DEBUG === '1';
 
@@ -655,12 +656,48 @@ module.exports = {
 
                     const attachment = new AttachmentBuilder(sourced.buffer, { name: sourced.filename });
 
-                    await message.channel.send({
-                        content: `**Sent by: ${sourced.postedByMention}**`,
-                        embeds: [embed],
-                        files: [attachment],
-                        allowedMentions: { users: [message.author.id] }
-                    }).catch(() => { });
+                    let sentOk = false;
+                    try {
+                        await message.channel.send({
+                            content: `**Sent by: ${sourced.postedByMention}**`,
+                            embeds: [embed],
+                            files: [attachment],
+                            allowedMentions: { users: [message.author.id] }
+                        });
+                        sentOk = true;
+                    } catch (sendErr) {
+                        if (SOCIAL_VIDEO_DEBUG) {
+                            try {
+                                console.error('[SOCIAL_VIDEO] failed to send attachment:', sendErr);
+                            } catch (_) {
+                                // ignore
+                            }
+                        }
+                    }
+
+                    if (!sentOk) {
+                        try {
+                            const direct = await buildSourcedDirectUrlPayload({ message, url });
+                            if (direct?.directUrl) {
+                                await message.channel.send({
+                                    content: `**Sent by: ${direct.postedByMention}**\n${direct.directUrl}`,
+                                    allowedMentions: { users: [message.author.id] }
+                                }).catch(() => { });
+                                return;
+                            }
+                        } catch (_) {
+                            // ignore
+                        }
+
+                        const rewritten = await unfurlSocialLink(url).catch(() => null);
+                        if (rewritten) {
+                            await message.channel.send({
+                                content: `**Sent by: ${sourced.postedByMention}**\n${rewritten}`,
+                                allowedMentions: { users: [message.author.id] }
+                            }).catch(() => { });
+                        }
+                        return;
+                    }
 
                     if (SOCIAL_VIDEO_DEBUG) {
                         console.debug(`[SOCIAL_VIDEO] sent: channel=${message.channelId} deletedOriginal=${Boolean(message.deletable)}`);
@@ -673,8 +710,38 @@ module.exports = {
                 }
             }
         } catch (e) {
+            try {
+                const content = String(message.content || '').trim();
+                const urls = extractCandidateUrls(content);
+                const url = urls.find((u) => isSupportedSocialVideoUrl(u));
+
+                if (url) {
+                    try {
+                        const direct = await buildSourcedDirectUrlPayload({ message, url });
+                        if (direct?.directUrl) {
+                            await message.channel.send({
+                                content: `**Sent by: ${direct.postedByMention}**\n${direct.directUrl}`,
+                                allowedMentions: { users: [message.author.id] }
+                            }).catch(() => { });
+                            return;
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+
+                    const rewritten = await unfurlSocialLink(url).catch(() => null);
+                    if (rewritten) {
+                        await message.channel.send({
+                            content: `**Sent by: <@${message.author.id}>**\n${rewritten}`,
+                            allowedMentions: { users: [message.author.id] }
+                        }).catch(() => { });
+                    }
+                }
+            } catch (_) {
+                // ignore
+            }
+
             if (String(e?.message || '') === 'FILE_TOO_LARGE') {
-                // ignore oversized videos silently for performance
                 return;
             }
             console.error('[SOCIAL_VIDEO] Error:', e);
