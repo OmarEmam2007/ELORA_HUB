@@ -4,6 +4,103 @@ module.exports = {
     async execute(client) {
         console.log(`🤖 Logged in as ${client.user.tag}`);
 
+        // --- 🧾 Staff Applications Auto-Close (24h no staff response) ---
+        try {
+            const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+            const StaffApplication = require('../../models/StaffApplication');
+
+            const ADMIN_LOGS_CHANNEL_ID = '1499431280356622336';
+            const AUTO_CLOSE_MS = 24 * 60 * 60 * 1000;
+
+            const tick = async () => {
+                const now = Date.now();
+                const cutoff = new Date(now - AUTO_CLOSE_MS);
+
+                const due = await StaffApplication.find({
+                    status: { $in: ['under_review', 'submitted'] },
+                    submittedAt: { $ne: null, $lte: cutoff },
+                    $or: [
+                        { lastStaffActivityAt: null },
+                        { lastStaffActivityAt: { $lte: cutoff } }
+                    ]
+                }).limit(25).catch(() => []);
+
+                if (!due?.length) return;
+
+                for (const app of due) {
+                    try {
+                        const guild = await client.guilds.fetch(app.guildId).catch(() => null);
+                        if (!guild) continue;
+
+                        app.status = 'closed';
+                        app.closedAt = new Date();
+                        await app.save().catch(() => { });
+
+                        if (app.channelId) {
+                            const ch = await guild.channels.fetch(app.channelId).catch(() => null);
+                            if (ch && ch.isTextBased?.()) {
+                                await ch.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
+                                await ch.send({ content: '▫️ **Application auto-closed due to inactivity (24h).**' }).catch(() => { });
+                            }
+                        }
+
+                        const logs = await guild.channels.fetch(ADMIN_LOGS_CHANNEL_ID).catch(() => null);
+                        if (logs && logs.isTextBased?.()) {
+                            const embed = new EmbedBuilder()
+                                .setColor('#000000')
+                                .setTitle('✦ APPLICATION AUTO-CLOSED')
+                                .setDescription(
+                                    [
+                                        `Applicant: <@${app.userId}>`,
+                                        `Department: \`${app.departmentKey}\``,
+                                        app.channelId ? `Channel: <#${app.channelId}>` : 'Channel: —',
+                                        'Reason: `No staff response within 24h`'
+                                    ].join('\n')
+                                )
+                                .setTimestamp();
+                            await logs.send({ embeds: [embed] }).catch(() => { });
+
+                            const a = app?.answers || {};
+                            const pick = (k, max = 512) => String(a?.[k] ?? '—').slice(0, max);
+                            const transcript = new EmbedBuilder()
+                                .setColor('#000000')
+                                .setTitle('✦ APPLICATION TRANSCRIPT')
+                                .setDescription(
+                                    [
+                                        `Applicant: <@${app.userId}>`,
+                                        `Department: \`${app.departmentKey}\``,
+                                        app.channelId ? `Channel: <#${app.channelId}>` : 'Channel: —',
+                                        'Decision: `auto-closed`'
+                                    ].join('\n')
+                                )
+                                .addFields(
+                                    { name: 'Basics', value: `Name: \`${pick('name', 64)}\`\nAge: \`${pick('age', 16)}\`\nCountry: \`${pick('country', 64)}\`\nTimezone: \`${pick('timezone', 32)}\`\nAvailability: \`${pick('availability', 64)}\`` },
+                                    { name: 'Q1', value: pick('q1') },
+                                    { name: 'Q2', value: pick('q2') },
+                                    { name: 'Q3', value: pick('q3') },
+                                    { name: 'Q4', value: pick('q4') },
+                                    { name: 'Q5', value: pick('q5') },
+                                    { name: 'Q6', value: pick('q6') },
+                                    { name: 'Q7', value: pick('q7') },
+                                    { name: 'Q8', value: pick('q8') },
+                                    { name: 'Q9', value: pick('q9') },
+                                    { name: 'Q10', value: pick('q10') }
+                                )
+                                .setTimestamp();
+                            await logs.send({ embeds: [transcript] }).catch(() => { });
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+            };
+
+            setTimeout(() => tick().catch(() => { }), 15_000);
+            setInterval(() => tick().catch(() => { }), 60_000);
+        } catch (_) {
+            // ignore
+        }
+
         // --- Disboard bump reminder scheduler (DB-backed; survives restarts) ---
         try {
             const { EmbedBuilder } = require('discord.js');

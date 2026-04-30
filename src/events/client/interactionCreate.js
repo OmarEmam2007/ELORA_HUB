@@ -24,6 +24,7 @@ const User = require('../../models/User');
 const MarriageProposal = require('../../models/MarriageProposal');
 const { withTransaction } = require('../../services/marriageService');
 const giveawayService = require('../../services/giveawayService');
+const StaffApplication = require('../../models/StaffApplication');
 
 const deletingTicketChannels = new Set();
 const partnershipTicketState = new Map();
@@ -428,6 +429,761 @@ module.exports = {
                 return safeReply(payload);
             }
         };
+
+        // --- 🧾 Staff Applications ---
+        try {
+            const APPLY_CATEGORY_ID = '1499425507257876580';
+            const ADMIN_LOGS_CHANNEL_ID = '1499431280356622336';
+            const MODERATOR_ROLE_ID = '1461767579361349826';
+            const TICKET_PANEL_CHANNEL_ID = '1461997428218794099';
+
+            const DEPARTMENTS = {
+                moderator: { label: 'Moderator', roleId: '1461767579361349826' },
+                developer: { label: 'Developer', roleId: '1480301421176950987' },
+                partner_manager: { label: 'Partner Manager', roleId: '1484963266177531986' },
+                girls_verifier: { label: 'Girls Verifier', roleId: '1480220933187829881' }
+            };
+
+            const VERIFIED_ROLE_ID = '1480220142213267476';
+            const HEHIM_ROLE_ID = '1480007171214151820';
+
+            const isOwnerOrAdmin = async (guild, userId) => {
+                if (!guild || !userId) return false;
+                if (guild.ownerId && userId === guild.ownerId) return true;
+                const m = await guild.members.fetch(userId).catch(() => null);
+                return Boolean(m?.permissions?.has?.(PermissionFlagsBits.Administrator));
+            };
+
+            const canStaffInteract = async (guild, userId, deptRoleId) => {
+                const m = await guild.members.fetch(userId).catch(() => null);
+                if (!m) return false;
+                if (guild.ownerId && userId === guild.ownerId) return true;
+                if (m.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+                if (deptRoleId && m.roles?.cache?.has?.(deptRoleId)) return true;
+                if (m.roles?.cache?.has?.(MODERATOR_ROLE_ID)) return true;
+                return false;
+            };
+
+            const postLog = async (guild, embed) => {
+                try {
+                    const ch = await guild.channels.fetch(ADMIN_LOGS_CHANNEL_ID).catch(() => null);
+                    if (ch?.isTextBased?.()) {
+                        await ch.send({ embeds: [embed] }).catch(() => { });
+                    }
+                } catch (_) {
+                    // ignore
+                }
+            };
+
+            const buildApplyEmbed = () => new EmbedBuilder()
+                .setColor('#000000')
+                .setTitle('✦ STAFF APPLICATIONS')
+                .setDescription(
+                    [
+                        '**Choose a department to begin.**',
+                        '',
+                        '- One active application at a time.',
+                        '- Cooldown: `3 days` between applications.',
+                        '- Auto-close if no staff response within `24h`.'
+                    ].join('\n')
+                )
+                .setFooter({ text: THEME.FOOTER?.text || 'ELORA', iconURL: THEME.FOOTER?.iconURL || undefined });
+
+            const buildReviewEmbed = (app) => {
+                const votes = app?.votes || {};
+                const approve = Object.values(votes).filter((v) => v === 'approve').length;
+                const reject = Object.values(votes).filter((v) => v === 'reject').length;
+                const avgRating = (() => {
+                    const vals = Object.values(app?.ratingByUser || {}).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+                    if (!vals.length) return null;
+                    const sum = vals.reduce((a, b) => a + b, 0);
+                    return (sum / vals.length).toFixed(2);
+                })();
+
+                const deptLabel = DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey;
+                const lines = [];
+                lines.push(`**Applicant:** <@${app.userId}>`);
+                lines.push(`**Department:** \`${deptLabel}\``);
+                lines.push(`**Status:** \`${app.status}\``);
+                lines.push('');
+                lines.push(`**Votes:** Approve \`${approve}\` | Reject \`${reject}\``);
+                lines.push(`**Avg Rating:** \`${avgRating ?? '—'}\``);
+                if (app?.rejectionReasonDraft) {
+                    lines.push('');
+                    lines.push(`**Reject Reason Draft:** ${String(app.rejectionReasonDraft).slice(0, 250)}`);
+                }
+
+                return new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ APPLICATION REVIEW')
+                    .setDescription(lines.join('\n'))
+                    .setFooter({ text: THEME.FOOTER?.text || 'ELORA', iconURL: THEME.FOOTER?.iconURL || undefined });
+            };
+
+            const buildAnswersEmbed = (app) => {
+                const a = app?.answers || {};
+                const pick = (k) => String(a?.[k] ?? '—').slice(0, 900);
+
+                return new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ APPLICATION ANSWERS')
+                    .addFields(
+                        { name: 'Basics', value: `Name: \`${pick('name')}\`\nAge: \`${pick('age')}\`\nCountry: \`${pick('country')}\`\nTimezone: \`${pick('timezone')}\`\nAvailability: \`${pick('availability')}\`` },
+                        { name: 'Q1', value: pick('q1') },
+                        { name: 'Q2', value: pick('q2') },
+                        { name: 'Q3', value: pick('q3') },
+                        { name: 'Q4', value: pick('q4') },
+                        { name: 'Q5', value: pick('q5') },
+                        { name: 'Q6', value: pick('q6') },
+                        { name: 'Q7', value: pick('q7') },
+                        { name: 'Q8', value: pick('q8') },
+                        { name: 'Q9', value: pick('q9') },
+                        { name: 'Q10', value: pick('q10') }
+                    );
+            };
+
+            const buildTranscriptEmbed = (app, { decidedById, decision } = {}) => {
+                const a = app?.answers || {};
+                const votes = app?.votes || {};
+                const approve = Object.values(votes).filter((v) => v === 'approve').length;
+                const reject = Object.values(votes).filter((v) => v === 'reject').length;
+                const avgRating = (() => {
+                    const vals = Object.values(app?.ratingByUser || {}).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+                    if (!vals.length) return null;
+                    const sum = vals.reduce((x, y) => x + y, 0);
+                    return (sum / vals.length).toFixed(2);
+                })();
+
+                const deptLabel = DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey;
+                const notes = Array.isArray(app?.internalNotes) ? app.internalNotes : [];
+                const notesText = notes
+                    .slice(-5)
+                    .map((n) => `- <@${n.by}>: ${String(n.note || '').slice(0, 120)}`)
+                    .join('\n') || '—';
+
+                const basics = [
+                    `Applicant: <@${app.userId}>`,
+                    `Department: \`${deptLabel}\``,
+                    `Status: \`${app.status}\``,
+                    decision ? `Decision: \`${decision}\`` : null,
+                    decidedById ? `By: <@${decidedById}>` : null,
+                    app.channelId ? `Channel: <#${app.channelId}>` : null,
+                    `Votes: Approve \`${approve}\` | Reject \`${reject}\``,
+                    `Avg Rating: \`${avgRating ?? '—'}\``
+                ].filter(Boolean).join('\n');
+
+                const qa = (k, label) => {
+                    const v = String(a?.[k] ?? '—');
+                    return { name: label, value: v.length ? v.slice(0, 1024) : '—' };
+                };
+
+                const embed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ APPLICATION TRANSCRIPT')
+                    .setDescription(basics)
+                    .addFields(
+                        { name: 'Basics', value: `Name: \`${String(a?.name ?? '—').slice(0, 64)}\`\nAge: \`${String(a?.age ?? '—').slice(0, 16)}\`\nCountry: \`${String(a?.country ?? '—').slice(0, 64)}\`\nTimezone: \`${String(a?.timezone ?? '—').slice(0, 32)}\`\nAvailability: \`${String(a?.availability ?? '—').slice(0, 64)}\`` },
+                        qa('q1', 'Q1'),
+                        qa('q2', 'Q2'),
+                        qa('q3', 'Q3'),
+                        qa('q4', 'Q4'),
+                        qa('q5', 'Q5'),
+                        qa('q6', 'Q6'),
+                        qa('q7', 'Q7'),
+                        qa('q8', 'Q8'),
+                        qa('q9', 'Q9'),
+                        qa('q10', 'Q10'),
+                        { name: 'Internal Notes (last 5)', value: notesText.slice(0, 1024) }
+                    )
+                    .setTimestamp();
+
+                if (app?.rejectionReason) {
+                    embed.addFields({ name: 'Rejection Reason', value: String(app.rejectionReason).slice(0, 1024) });
+                }
+
+                return embed;
+            };
+
+            const buildReviewComponents = (appId) => {
+                const row1 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`staffapp:vote:approve:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Vote Approve'),
+                    new ButtonBuilder().setCustomId(`staffapp:vote:reject:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Vote Reject'),
+                    new ButtonBuilder().setCustomId(`staffapp:rate:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Rate 1-5'),
+                    new ButtonBuilder().setCustomId(`staffapp:note:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Internal Note')
+                );
+
+                const row2 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`staffapp:reason:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Reject Reason (Draft)'),
+                    new ButtonBuilder().setCustomId(`staffapp:accept:${appId}`).setStyle(ButtonStyle.Success).setLabel('Accept'),
+                    new ButtonBuilder().setCustomId(`staffapp:reject:${appId}`).setStyle(ButtonStyle.Danger).setLabel('Reject'),
+                    new ButtonBuilder().setCustomId(`staffapp:close:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Close')
+                );
+
+                return [row1, row2];
+            };
+
+            const refreshReviewMessage = async (channel, messageId, app) => {
+                try {
+                    const msg = await channel.messages.fetch(messageId).catch(() => null);
+                    if (!msg) return;
+                    await msg.edit({ embeds: [buildAnswersEmbed(app), buildReviewEmbed(app)], components: buildReviewComponents(String(app._id)) }).catch(() => { });
+                } catch (_) {
+                    // ignore
+                }
+            };
+
+            // Apply panel button
+            if (interaction.isButton?.() && interaction.customId === 'staffapp:open') {
+                if (!interaction.guild) return safeReply({ content: '❌ Server only.', ephemeral: true });
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                const deptRow = new ActionRowBuilder().addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId('staffapp:dept')
+                        .setPlaceholder('Select a department')
+                        .addOptions(
+                            { label: 'Moderator', value: 'moderator' },
+                            { label: 'Developer', value: 'developer' },
+                            { label: 'Partner Manager', value: 'partner_manager' },
+                            { label: 'Girls Verifier', value: 'girls_verifier' }
+                        )
+                );
+
+                return safeEdit({ embeds: [buildApplyEmbed()], components: [deptRow] });
+            }
+
+            // Department select -> create draft + open modal 1
+            if (interaction.isStringSelectMenu?.() && interaction.customId === 'staffapp:dept') {
+                if (!interaction.guild) return safeReply({ content: '❌ Server only.', ephemeral: true });
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                const deptKey = String(interaction.values?.[0] || '');
+                const dept = DEPARTMENTS[deptKey];
+                if (!dept) return safeEdit({ content: '❌ Invalid department.' });
+
+                if (deptKey === 'girls_verifier') {
+                    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                    const hasVerified = Boolean(member?.roles?.cache?.has?.(VERIFIED_ROLE_ID));
+                    const hasHeHim = Boolean(member?.roles?.cache?.has?.(HEHIM_ROLE_ID));
+                    if (!hasVerified) {
+                        return safeEdit({ content: `❌ You must be verified first.\nOpen a verification ticket here: <#${TICKET_PANEL_CHANNEL_ID}>` });
+                    }
+                    if (hasHeHim) {
+                        return safeEdit({ content: '❌ This department requires a verified female account.' });
+                    }
+                }
+
+                const existingActive = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['draft', 'submitted', 'under_review'] } }).catch(() => null);
+                if (existingActive) {
+                    const chId = existingActive?.channelId;
+                    return safeEdit({ content: `❌ You already have an active application.${chId ? `\nChannel: <#${chId}>` : ''}` });
+                }
+
+                const last = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['accepted', 'rejected', 'closed'] } })
+                    .sort({ decidedAt: -1, closedAt: -1, updatedAt: -1 })
+                    .lean()
+                    .catch(() => null);
+
+                const lastAt = last?.lastAppliedAt || last?.submittedAt || last?.createdAt;
+                if (lastAt) {
+                    const ms = Date.now() - new Date(lastAt).getTime();
+                    const cooldownMs = 3 * 24 * 60 * 60 * 1000;
+                    if (ms < cooldownMs) {
+                        const hrs = Math.ceil((cooldownMs - ms) / (60 * 60 * 1000));
+                        return safeEdit({ content: `❌ Cooldown active. Try again in ~${hrs} hour(s).` });
+                    }
+                }
+
+                const app = await StaffApplication.create({
+                    guildId: interaction.guild.id,
+                    userId: interaction.user.id,
+                    departmentKey: deptKey,
+                    departmentRoleId: dept.roleId,
+                    status: 'draft',
+                    applicantTag: interaction.user.tag,
+                    lastAppliedAt: new Date()
+                }).catch(() => null);
+
+                if (!app) return safeEdit({ content: '❌ Failed to start application.' });
+
+                const appId = String(app._id);
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`staffapp:modal:part1:${appId}`)
+                    .setTitle('Staff Application (1/3)');
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('name').setLabel('Your Name').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(64)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('age').setLabel('Your Age').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(16)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('country').setLabel('Country').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(64)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('timezone').setLabel('Timezone (e.g. UTC+3)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(32)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('availability').setLabel('Availability (hours/day)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(64))
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            // Modal 1
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:part1:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+
+                app.answers = {
+                    ...(app.answers || {}),
+                    name: interaction.fields.getTextInputValue('name'),
+                    age: interaction.fields.getTextInputValue('age'),
+                    country: interaction.fields.getTextInputValue('country'),
+                    timezone: interaction.fields.getTextInputValue('timezone'),
+                    availability: interaction.fields.getTextInputValue('availability')
+                };
+                await app.save().catch(() => { });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`staffapp:continue2:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Continue (2/3)')
+                );
+                return safeEdit({ content: '✅ Saved. Continue.', components: [row] });
+            }
+
+            // Continue -> Modal 2 (Q1-Q5)
+            if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:continue2:')) {
+                const appId = String(interaction.customId).split(':')[2];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '❌ Application not found.', ephemeral: true });
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`staffapp:modal:part2:${appId}`)
+                    .setTitle('Staff Application (2/3)');
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q1').setLabel('Q1: Why do you want this position?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q2').setLabel('Q2: What makes you a good fit?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q3').setLabel('Q3: Past experience (if any)?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q4').setLabel('Q4: How do you handle conflict?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q5').setLabel('Q5: What are your rules/values as staff?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900))
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            // Modal 2 submit
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:part2:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+
+                app.answers = {
+                    ...(app.answers || {}),
+                    q1: interaction.fields.getTextInputValue('q1'),
+                    q2: interaction.fields.getTextInputValue('q2'),
+                    q3: interaction.fields.getTextInputValue('q3'),
+                    q4: interaction.fields.getTextInputValue('q4'),
+                    q5: interaction.fields.getTextInputValue('q5')
+                };
+                await app.save().catch(() => { });
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`staffapp:continue3:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Continue (3/3)')
+                );
+                return safeEdit({ content: '✅ Saved. Continue.', components: [row] });
+            }
+
+            // Continue -> Modal 3 (Q6-Q10)
+            if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:continue3:')) {
+                const appId = String(interaction.customId).split(':')[2];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '❌ Application not found.', ephemeral: true });
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`staffapp:modal:part3:${appId}`)
+                    .setTitle('Staff Application (3/3)');
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q6').setLabel('Q6: Your strengths (3 points).').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q7').setLabel('Q7: Your weaknesses (and how you improve).').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q8').setLabel('Q8: Scenario: member breaks rules publicly.').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q9').setLabel('Q9: Scenario: staff abuse of power.').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('q10').setLabel('Q10: Anything else?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900))
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            // Modal 3 submit -> create channel and post review
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:part3:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+
+                app.answers = {
+                    ...(app.answers || {}),
+                    q6: interaction.fields.getTextInputValue('q6'),
+                    q7: interaction.fields.getTextInputValue('q7'),
+                    q8: interaction.fields.getTextInputValue('q8'),
+                    q9: interaction.fields.getTextInputValue('q9'),
+                    q10: interaction.fields.getTextInputValue('q10')
+                };
+                app.status = 'under_review';
+                app.submittedAt = new Date();
+                app.lastApplicantActivityAt = new Date();
+                await app.save().catch(() => { });
+
+                const guild = interaction.guild;
+                const userSlug = String(interaction.user.username || 'user').toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 16) || interaction.user.id;
+                const channelName = `app-${app.departmentKey}-${userSlug}`.slice(0, 100);
+
+                const overwrites = [
+                    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+                ];
+
+                const deptRole = await guild.roles.fetch(app.departmentRoleId).catch(() => null);
+                if (deptRole) {
+                    overwrites.push({ id: deptRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+                }
+
+                const modRole = await guild.roles.fetch(MODERATOR_ROLE_ID).catch(() => null);
+                if (modRole) {
+                    overwrites.push({ id: modRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+                }
+
+                const created = await guild.channels.create({
+                    name: channelName,
+                    type: ChannelType.GuildText,
+                    parent: APPLY_CATEGORY_ID,
+                    topic: `Staff Application • ${app.departmentKey} • User: ${interaction.user.tag} (${interaction.user.id}) • AppId: ${app._id}`,
+                    permissionOverwrites: Array.from(new Map(overwrites.map((o) => [o.id, o])).values()),
+                    reason: `Staff application created by ${interaction.user.tag}`
+                }).catch(() => null);
+
+                if (!created) return safeEdit({ content: '❌ Failed to create application channel. Check bot permissions.' });
+
+                app.channelId = created.id;
+                await app.save().catch(() => { });
+
+                const header = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ NEW STAFF APPLICATION')
+                    .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\``)
+                    .setTimestamp();
+
+                const reviewMsg = await created.send({ embeds: [buildAnswersEmbed(app), buildReviewEmbed(app)], components: buildReviewComponents(String(app._id)) }).catch(() => null);
+                await created.send({ embeds: [header] }).catch(() => { });
+
+                if (reviewMsg) {
+                    app.reviewMessageId = reviewMsg.id;
+                    await app.save().catch(() => { });
+                }
+
+                const logEmbed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ NEW APPLICATION SUBMITTED')
+                    .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\`\nChannel: <#${created.id}>`)
+                    .setTimestamp();
+                await postLog(guild, logEmbed);
+
+                return safeEdit({ content: `✅ Submitted. Your application channel: <#${created.id}>`, components: [] });
+            }
+
+            // Staff actions in application channel
+            if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:')) {
+                const parts = String(interaction.customId).split(':');
+                const action = parts[1];
+                const appId = parts[parts.length - 1];
+
+                const needsApp = ['vote', 'rate', 'note', 'reason', 'accept', 'reject', 'close'].includes(action);
+                if (needsApp) {
+                    if (!interaction.guild) return;
+                    const app = await StaffApplication.findById(appId).catch(() => null);
+                    if (!app) return safeReply({ content: '❌ Application not found.', ephemeral: true });
+                    if (interaction.channelId !== app.channelId) return safeReply({ content: '❌ Use this in the application channel.', ephemeral: true });
+
+                    if (action === 'vote') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const voteValue = parts[2];
+                        if (voteValue !== 'approve' && voteValue !== 'reject') return safeEdit({ content: '❌ Invalid vote.' });
+                        const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                        app.votes = { ...(app.votes || {}), [interaction.user.id]: voteValue };
+                        app.lastStaffActivityAt = new Date();
+                        await app.save().catch(() => { });
+                        await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                        return safeEdit({ content: `✅ Vote saved: \`${voteValue}\`` });
+                    }
+
+                    if (action === 'rate') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                        const menu = new ActionRowBuilder().addComponents(
+                            new StringSelectMenuBuilder()
+                                .setCustomId(`staffapp:rate_select:${appId}`)
+                                .setPlaceholder('Select rating')
+                                .addOptions(
+                                    { label: '1', value: '1' },
+                                    { label: '2', value: '2' },
+                                    { label: '3', value: '3' },
+                                    { label: '4', value: '4' },
+                                    { label: '5', value: '5' }
+                                )
+                        );
+                        return safeEdit({ content: 'Select rating:', components: [menu] });
+                    }
+
+                    if (action === 'note') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                        const modal = new ModalBuilder()
+                            .setCustomId(`staffapp:modal:note:${appId}`)
+                            .setTitle('Internal Note');
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder().setCustomId('note').setLabel('Note').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
+                            )
+                        );
+                        return interaction.showModal(modal);
+                    }
+
+                    if (action === 'reason') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                        const modal = new ModalBuilder()
+                            .setCustomId(`staffapp:modal:reason:${appId}`)
+                            .setTitle('Reject Reason (Draft)');
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder().setCustomId('reason').setLabel('Draft reason (for staff)')
+                                    .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
+                            )
+                        );
+                        return interaction.showModal(modal);
+                    }
+
+                    if (action === 'accept') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
+                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+
+                        const approve = Object.values(app.votes || {}).filter((v) => v === 'approve').length;
+                        if (approve < 2 && !(interaction.guild.ownerId && interaction.user.id === interaction.guild.ownerId)) {
+                            return safeEdit({ content: '❌ Need at least 2 approve votes.' });
+                        }
+
+                        const member = await interaction.guild.members.fetch(app.userId).catch(() => null);
+                        if (member) {
+                            await member.roles.add(app.departmentRoleId).catch(() => { });
+                        }
+
+                        app.status = 'accepted';
+                        app.decidedAt = new Date();
+                        app.lastStaffActivityAt = new Date();
+                        await app.save().catch(() => { });
+
+                        await interaction.channel.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
+
+                        try {
+                            const user = await interaction.client.users.fetch(app.userId).catch(() => null);
+                            if (user) {
+                                const deptLabel = DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey;
+                                const dm = new EmbedBuilder()
+                                    .setColor('#000000')
+                                    .setTitle('✦ APPLICATION ACCEPTED')
+                                    .setDescription(
+                                        [
+                                            `You have been **accepted** as **${deptLabel}**.`,
+                                            '',
+                                            '**Instructions:**',
+                                            '- Read all staff channels and pinned messages.',
+                                            '- Follow server rules and staff chain of command.',
+                                            '- Use the ticket panel for reports: <#1461997428218794099>.',
+                                            '- If you need help, contact the owner/admin team.',
+                                            '',
+                                            'Welcome aboard.'
+                                        ].join('\n')
+                                    );
+                                await user.send({ embeds: [dm] }).catch(() => { });
+                            }
+                        } catch (_) {
+                            // ignore
+                        }
+
+                        const logEmbed = new EmbedBuilder()
+                            .setColor('#000000')
+                            .setTitle('✦ APPLICATION ACCEPTED')
+                            .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\`\nBy: <@${interaction.user.id}>\nChannel: <#${app.channelId}>`)
+                            .setTimestamp();
+                        await postLog(interaction.guild, logEmbed);
+
+                        await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'accepted' }));
+
+                        await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                        return safeEdit({ content: '✅ Accepted and role assigned.', components: [] });
+                    }
+
+                    if (action === 'reject') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
+                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+
+                        const modal = new ModalBuilder().setCustomId(`staffapp:modal:reject:${appId}`).setTitle('Reject Reason');
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(
+                                new TextInputBuilder().setCustomId('reason').setLabel('Reason (sent to applicant)')
+                                    .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
+                            )
+                        );
+                        return interaction.showModal(modal);
+                    }
+
+                    if (action === 'close') {
+                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                        const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
+                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+
+                        app.status = 'closed';
+                        app.closedAt = new Date();
+                        app.lastStaffActivityAt = new Date();
+                        await app.save().catch(() => { });
+
+                        await interaction.channel.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
+                        await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'closed' }));
+                        await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                        return safeEdit({ content: '✅ Closed.' });
+                    }
+                }
+            }
+
+            // Rating select
+            if (interaction.isStringSelectMenu?.() && String(interaction.customId || '').startsWith('staffapp:rate_select:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[2];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app) return safeEdit({ content: '❌ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+
+                const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                const val = Number(interaction.values?.[0]);
+                if (!Number.isFinite(val) || val < 1 || val > 5) return safeEdit({ content: '❌ Invalid rating.' });
+
+                app.ratingByUser = { ...(app.ratingByUser || {}), [interaction.user.id]: val };
+                app.lastStaffActivityAt = new Date();
+                await app.save().catch(() => { });
+                await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                return safeEdit({ content: `✅ Rating saved: ${val}/5`, components: [] });
+            }
+
+            // Internal note modal
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:note:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app) return safeEdit({ content: '❌ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+
+                const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                const note = String(interaction.fields.getTextInputValue('note') || '').trim();
+                if (!note) return safeEdit({ content: '❌ Empty note.' });
+
+                app.internalNotes = Array.isArray(app.internalNotes) ? app.internalNotes : [];
+                app.internalNotes.push({ by: interaction.user.id, at: new Date(), note: note.slice(0, 900) });
+                app.lastStaffActivityAt = new Date();
+                await app.save().catch(() => { });
+                return safeEdit({ content: '✅ Note saved.' });
+            }
+
+            // Reject reason draft modal
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:reason:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app) return safeEdit({ content: '❌ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+
+                const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
+                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+
+                const reason = String(interaction.fields.getTextInputValue('reason') || '').trim();
+                if (!reason) return safeEdit({ content: '❌ Empty reason.' });
+
+                app.rejectionReasonDraft = reason.slice(0, 900);
+                app.lastStaffActivityAt = new Date();
+                await app.save().catch(() => { });
+                await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                return safeEdit({ content: '✅ Draft reason saved.' });
+            }
+
+            // Reject final modal
+            if (interaction.isModalSubmit?.() && String(interaction.customId || '').startsWith('staffapp:modal:reject:')) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                const appId = String(interaction.customId).split(':')[3];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app) return safeEdit({ content: '❌ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+
+                const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
+                if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+
+                const reason = String(interaction.fields.getTextInputValue('reason') || '').trim();
+                if (!reason) return safeEdit({ content: '❌ Reason required.' });
+
+                app.status = 'rejected';
+                app.rejectionReason = reason.slice(0, 900);
+                app.decidedAt = new Date();
+                app.lastStaffActivityAt = new Date();
+                await app.save().catch(() => { });
+
+                await interaction.channel.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
+
+                try {
+                    const user = await interaction.client.users.fetch(app.userId).catch(() => null);
+                    if (user) {
+                        const deptLabel = DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey;
+                        const dm = new EmbedBuilder()
+                            .setColor('#000000')
+                            .setTitle('✦ APPLICATION REJECTED')
+                            .setDescription(
+                                [
+                                    `Your application for **${deptLabel}** was **rejected**.`,
+                                    '',
+                                    `**Reason:** ${app.rejectionReason}`,
+                                    '',
+                                    'You may apply again after the cooldown.'
+                                ].join('\n')
+                            );
+                        await user.send({ embeds: [dm] }).catch(() => { });
+                    }
+                } catch (_) {
+                    // ignore
+                }
+
+                const logEmbed = new EmbedBuilder()
+                    .setColor('#000000')
+                    .setTitle('✦ APPLICATION REJECTED')
+                    .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\`\nBy: <@${interaction.user.id}>\nReason: ${app.rejectionReason}\nChannel: <#${app.channelId}>`)
+                    .setTimestamp();
+                await postLog(interaction.guild, logEmbed);
+
+                await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'rejected' }));
+
+                await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
+                return safeEdit({ content: '✅ Rejected and DM sent.', components: [] });
+            }
+        } catch (e) {
+            console.error('[STAFFAPP] error:', e);
+        }
 
         const getDynEmoji = () => `${interaction.client.emojis.cache.get('1487391271759646750')?.toString() || '✦'}`;
         const genGirlsCode = () => `ELORA-${Math.floor(100 + Math.random() * 900)}`;
