@@ -634,7 +634,7 @@ module.exports = {
 
             // Apply panel button
             if (interaction.isButton?.() && interaction.customId === 'staffapp:open') {
-                if (!interaction.guild) return safeReply({ content: '❌ Server only.', ephemeral: true });
+                if (!interaction.guild) return safeReply({ content: '✗ Server only.', ephemeral: true });
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
 
                 const deptRow = new ActionRowBuilder().addComponents(
@@ -654,29 +654,28 @@ module.exports = {
 
             // Department select -> create draft + open modal 1
             if (interaction.isStringSelectMenu?.() && interaction.customId === 'staffapp:dept') {
-                if (!interaction.guild) return safeReply({ content: '❌ Server only.', ephemeral: true });
-                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                if (!interaction.guild) return safeReply({ content: '✗ Server only.', ephemeral: true });
 
                 const deptKey = String(interaction.values?.[0] || '');
                 const dept = DEPARTMENTS[deptKey];
-                if (!dept) return safeEdit({ content: '❌ Invalid department.' });
+                if (!dept) return safeReply({ content: '✗ Invalid department.', ephemeral: true });
 
                 if (deptKey === 'girls_verifier') {
                     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
                     const hasVerified = Boolean(member?.roles?.cache?.has?.(VERIFIED_ROLE_ID));
                     const hasHeHim = Boolean(member?.roles?.cache?.has?.(HEHIM_ROLE_ID));
                     if (!hasVerified) {
-                        return safeEdit({ content: `❌ You must be verified first.\nOpen a verification ticket here: <#${TICKET_PANEL_CHANNEL_ID}>` });
+                        return safeReply({ content: `✗ You must be verified first.\nOpen a verification ticket here: <#${TICKET_PANEL_CHANNEL_ID}>`, ephemeral: true });
                     }
                     if (hasHeHim) {
-                        return safeEdit({ content: '❌ This department requires a verified female account.' });
+                        return safeReply({ content: '✗ This department requires a verified female account.', ephemeral: true });
                     }
                 }
 
                 const existingActive = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['draft', 'submitted', 'under_review'] } }).catch(() => null);
                 if (existingActive) {
                     const chId = existingActive?.channelId;
-                    return safeEdit({ content: `❌ You already have an active application.${chId ? `\nChannel: <#${chId}>` : ''}` });
+                    return safeReply({ content: `✗ You already have an active application.${chId ? `\nChannel: <#${chId}>` : ''}`, ephemeral: true });
                 }
 
                 const last = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['accepted', 'rejected', 'closed'] } })
@@ -690,7 +689,7 @@ module.exports = {
                     const cooldownMs = 3 * 24 * 60 * 60 * 1000;
                     if (ms < cooldownMs) {
                         const hrs = Math.ceil((cooldownMs - ms) / (60 * 60 * 1000));
-                        return safeEdit({ content: `❌ Cooldown active. Try again in ~${hrs} hour(s).` });
+                        return safeReply({ content: `✗ Cooldown active. Try again in ~${hrs} hour(s).`, ephemeral: true });
                     }
                 }
 
@@ -704,7 +703,7 @@ module.exports = {
                     lastAppliedAt: new Date()
                 }).catch(() => null);
 
-                if (!app) return safeEdit({ content: '❌ Failed to start application.' });
+                if (!app) return safeReply({ content: '✗ Failed to start application.', ephemeral: true });
 
                 const appId = String(app._id);
 
@@ -720,7 +719,12 @@ module.exports = {
                     new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('availability').setLabel('Availability (hours/day)').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(64))
                 );
 
-                return interaction.showModal(modal);
+                try {
+                    return await interaction.showModal(modal);
+                } catch (e) {
+                    await StaffApplication.deleteOne({ _id: app._id }).catch(() => { });
+                    return safeReply({ content: '✗ Failed to open the application form. Please try again.', ephemeral: true });
+                }
             }
 
             // Modal 1
@@ -728,7 +732,7 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '✗ Application not found.' });
 
                 app.answers = {
                     ...(app.answers || {}),
@@ -743,14 +747,14 @@ module.exports = {
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`staffapp:continue2:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Continue (2/3)')
                 );
-                return safeEdit({ content: '✅ Saved. Continue.', components: [row] });
+                return safeEdit({ content: '✓ Saved. Continue.', components: [row] });
             }
 
             // Continue -> Modal 2 (Q1-Q5)
             if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:continue2:')) {
                 const appId = String(interaction.customId).split(':')[2];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '❌ Application not found.', ephemeral: true });
+                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '✗ Application not found.', ephemeral: true });
 
                 const modal = new ModalBuilder()
                     .setCustomId(`staffapp:modal:part2:${appId}`)
@@ -772,7 +776,7 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '✗ Application not found.' });
 
                 app.answers = {
                     ...(app.answers || {}),
@@ -787,14 +791,14 @@ module.exports = {
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`staffapp:continue3:${appId}`).setStyle(ButtonStyle.Secondary).setLabel('Continue (3/3)')
                 );
-                return safeEdit({ content: '✅ Saved. Continue.', components: [row] });
+                return safeEdit({ content: '✓ Saved. Continue.', components: [row] });
             }
 
             // Continue -> Modal 3 (Q6-Q10)
             if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:continue3:')) {
                 const appId = String(interaction.customId).split(':')[2];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '❌ Application not found.', ephemeral: true });
+                if (!app || app.userId !== interaction.user.id) return safeReply({ content: '✗ Application not found.', ephemeral: true });
 
                 const modal = new ModalBuilder()
                     .setCustomId(`staffapp:modal:part3:${appId}`)
@@ -816,7 +820,7 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '❌ Application not found.' });
+                if (!app || app.userId !== interaction.user.id) return safeEdit({ content: '✗ Application not found.' });
 
                 app.answers = {
                     ...(app.answers || {}),
@@ -854,38 +858,28 @@ module.exports = {
                     name: channelName,
                     type: ChannelType.GuildText,
                     parent: APPLY_CATEGORY_ID,
-                    topic: `Staff Application • ${app.departmentKey} • User: ${interaction.user.tag} (${interaction.user.id}) • AppId: ${app._id}`,
-                    permissionOverwrites: Array.from(new Map(overwrites.map((o) => [o.id, o])).values()),
-                    reason: `Staff application created by ${interaction.user.tag}`
+                    permissionOverwrites: overwrites,
+                    topic: `Staff Application | User: ${interaction.user.tag} (${interaction.user.id}) | Dept: ${app.departmentKey} | AppId: ${String(app._id)}`
                 }).catch(() => null);
 
-                if (!created) return safeEdit({ content: '❌ Failed to create application channel. Check bot permissions.' });
+                const appChannel = created;
+                if (!appChannel || !appChannel.isTextBased?.()) return safeEdit({ content: '✗ Failed to create application channel.' });
 
-                app.channelId = created.id;
+                app.channelId = appChannel.id;
                 await app.save().catch(() => { });
 
-                const header = new EmbedBuilder()
-                    .setColor('#000000')
-                    .setTitle('✦ NEW STAFF APPLICATION')
-                    .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\``)
-                    .setTimestamp();
-
-                const reviewMsg = await created.send({ embeds: [buildAnswersEmbed(app), buildReviewEmbed(app)], components: buildReviewComponents(String(app._id)) }).catch(() => null);
-                await created.send({ embeds: [header] }).catch(() => { });
+                const reviewMsg = await appChannel.send({
+                    content: `Applicant: <@${app.userId}> | Department: **${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}**`,
+                    embeds: [buildAnswersEmbed(app), buildReviewEmbed(app)],
+                    components: buildReviewComponents(String(app._id))
+                }).catch(() => null);
 
                 if (reviewMsg) {
                     app.reviewMessageId = reviewMsg.id;
                     await app.save().catch(() => { });
                 }
 
-                const logEmbed = new EmbedBuilder()
-                    .setColor('#000000')
-                    .setTitle('✦ NEW APPLICATION SUBMITTED')
-                    .setDescription(`Applicant: <@${app.userId}>\nDepartment: \`${DEPARTMENTS?.[app.departmentKey]?.label || app.departmentKey}\`\nChannel: <#${created.id}>`)
-                    .setTimestamp();
-                await postLog(guild, logEmbed);
-
-                return safeEdit({ content: `✅ Submitted. Your application channel: <#${created.id}>`, components: [] });
+                return safeEdit({ content: `✓ Submitted. Channel: <#${appChannel.id}>`, components: [] });
             }
 
             // Staff actions in application channel
@@ -898,27 +892,27 @@ module.exports = {
                 if (needsApp) {
                     if (!interaction.guild) return;
                     const app = await StaffApplication.findById(appId).catch(() => null);
-                    if (!app) return safeReply({ content: '❌ Application not found.', ephemeral: true });
-                    if (interaction.channelId !== app.channelId) return safeReply({ content: '❌ Use this in the application channel.', ephemeral: true });
+                    if (!app) return safeReply({ content: '✗ Application not found.', ephemeral: true });
+                    if (interaction.channelId !== app.channelId) return safeReply({ content: '✗ Use this in the application channel.', ephemeral: true });
 
                     if (action === 'vote') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const voteValue = parts[2];
-                        if (voteValue !== 'approve' && voteValue !== 'reject') return safeEdit({ content: '❌ Invalid vote.' });
+                        if (voteValue !== 'approve' && voteValue !== 'reject') return safeEdit({ content: '✗ Invalid vote.' });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                        if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                         app.votes = { ...(app.votes || {}), [interaction.user.id]: voteValue };
                         app.lastStaffActivityAt = new Date();
                         await app.save().catch(() => { });
                         await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                        return safeEdit({ content: `✅ Vote saved: \`${voteValue}\`` });
+                        return safeEdit({ content: `✓ Vote saved: \`${voteValue}\`` });
                     }
 
                     if (action === 'rate') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                        if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                         const menu = new ActionRowBuilder().addComponents(
                             new StringSelectMenuBuilder()
@@ -938,7 +932,7 @@ module.exports = {
                     if (action === 'note') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                        if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                         const modal = new ModalBuilder()
                             .setCustomId(`staffapp:modal:note:${appId}`)
@@ -954,7 +948,7 @@ module.exports = {
                     if (action === 'reason') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                        if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                        if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                         const modal = new ModalBuilder()
                             .setCustomId(`staffapp:modal:reason:${appId}`)
@@ -971,11 +965,11 @@ module.exports = {
                     if (action === 'accept') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
-                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+                        if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
 
                         const approve = Object.values(app.votes || {}).filter((v) => v === 'approve').length;
                         if (approve < 2 && !(interaction.guild.ownerId && interaction.user.id === interaction.guild.ownerId)) {
-                            return safeEdit({ content: '❌ Need at least 2 approve votes.' });
+                            return safeEdit({ content: '✗ Need at least 2 approve votes.' });
                         }
 
                         const member = await interaction.guild.members.fetch(app.userId).catch(() => null);
@@ -1026,13 +1020,13 @@ module.exports = {
                         await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'accepted' }));
 
                         await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                        return safeEdit({ content: '✅ Accepted and role assigned.', components: [] });
+                        return safeEdit({ content: '✓ Accepted and role assigned.', components: [] });
                     }
 
                     if (action === 'reject') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
-                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+                        if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
 
                         const modal = new ModalBuilder().setCustomId(`staffapp:modal:reject:${appId}`).setTitle('Reject Reason');
                         modal.addComponents(
@@ -1047,7 +1041,7 @@ module.exports = {
                     if (action === 'close') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
-                        if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+                        if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
 
                         app.status = 'closed';
                         app.closedAt = new Date();
@@ -1057,7 +1051,7 @@ module.exports = {
                         await interaction.channel.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
                         await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'closed' }));
                         await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                        return safeEdit({ content: '✅ Closed.' });
+                        return safeEdit({ content: '✓ Closed.' });
                     }
                 }
             }
@@ -1067,20 +1061,20 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[2];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app) return safeEdit({ content: '❌ Application not found.' });
-                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+                if (!app) return safeEdit({ content: '✗ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                 const val = Number(interaction.values?.[0]);
-                if (!Number.isFinite(val) || val < 1 || val > 5) return safeEdit({ content: '❌ Invalid rating.' });
+                if (!Number.isFinite(val) || val < 1 || val > 5) return safeEdit({ content: '✗ Invalid rating.' });
 
                 app.ratingByUser = { ...(app.ratingByUser || {}), [interaction.user.id]: val };
                 app.lastStaffActivityAt = new Date();
                 await app.save().catch(() => { });
                 await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                return safeEdit({ content: `✅ Rating saved: ${val}/5`, components: [] });
+                return safeEdit({ content: `✓ Rating saved: ${val}/5`, components: [] });
             }
 
             // Internal note modal
@@ -1088,20 +1082,20 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app) return safeEdit({ content: '❌ Application not found.' });
-                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+                if (!app) return safeEdit({ content: '✗ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                 const note = String(interaction.fields.getTextInputValue('note') || '').trim();
-                if (!note) return safeEdit({ content: '❌ Empty note.' });
+                if (!note) return safeEdit({ content: '✗ Empty note.' });
 
                 app.internalNotes = Array.isArray(app.internalNotes) ? app.internalNotes : [];
                 app.internalNotes.push({ by: interaction.user.id, at: new Date(), note: note.slice(0, 900) });
                 app.lastStaffActivityAt = new Date();
                 await app.save().catch(() => { });
-                return safeEdit({ content: '✅ Note saved.' });
+                return safeEdit({ content: '✓ Note saved.' });
             }
 
             // Reject reason draft modal
@@ -1109,20 +1103,20 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app) return safeEdit({ content: '❌ Application not found.' });
-                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+                if (!app) return safeEdit({ content: '✗ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
-                if (!ok) return safeEdit({ content: '❌ Staff only.' });
+                if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
                 const reason = String(interaction.fields.getTextInputValue('reason') || '').trim();
-                if (!reason) return safeEdit({ content: '❌ Empty reason.' });
+                if (!reason) return safeEdit({ content: '✗ Empty reason.' });
 
                 app.rejectionReasonDraft = reason.slice(0, 900);
                 app.lastStaffActivityAt = new Date();
                 await app.save().catch(() => { });
                 await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                return safeEdit({ content: '✅ Draft reason saved.' });
+                return safeEdit({ content: '✓ Draft reason saved.' });
             }
 
             // Reject final modal
@@ -1130,14 +1124,14 @@ module.exports = {
                 await interaction.deferReply({ ephemeral: true }).catch(() => { });
                 const appId = String(interaction.customId).split(':')[3];
                 const app = await StaffApplication.findById(appId).catch(() => null);
-                if (!app) return safeEdit({ content: '❌ Application not found.' });
-                if (interaction.channelId !== app.channelId) return safeEdit({ content: '❌ Use this in the application channel.' });
+                if (!app) return safeEdit({ content: '✗ Application not found.' });
+                if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
                 const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
-                if (!ok) return safeEdit({ content: '❌ Owner/Admin only.' });
+                if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
 
                 const reason = String(interaction.fields.getTextInputValue('reason') || '').trim();
-                if (!reason) return safeEdit({ content: '❌ Reason required.' });
+                if (!reason) return safeEdit({ content: '✗ Reason required.' });
 
                 app.status = 'rejected';
                 app.rejectionReason = reason.slice(0, 900);
@@ -1179,7 +1173,7 @@ module.exports = {
                 await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'rejected' }));
 
                 await refreshReviewMessage(interaction.channel, app.reviewMessageId, app);
-                return safeEdit({ content: '✅ Rejected and DM sent.', components: [] });
+                return safeEdit({ content: '✓ Rejected and DM sent.', components: [] });
             }
         } catch (e) {
             console.error('[STAFFAPP] error:', e);
