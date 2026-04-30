@@ -895,6 +895,10 @@ module.exports = {
                     if (!app) return safeReply({ content: '✗ Application not found.', ephemeral: true });
                     if (interaction.channelId !== app.channelId) return safeReply({ content: '✗ Use this in the application channel.', ephemeral: true });
 
+                    if (interaction.user.id === app.userId) {
+                        return safeReply({ content: '✗ Applicants cannot use staff controls.', ephemeral: true });
+                    }
+
                     if (action === 'vote') {
                         await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const voteValue = parts[2];
@@ -930,7 +934,6 @@ module.exports = {
                     }
 
                     if (action === 'note') {
-                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
                         if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
@@ -942,11 +945,10 @@ module.exports = {
                                 new TextInputBuilder().setCustomId('note').setLabel('Note').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
                             )
                         );
-                        return interaction.showModal(modal);
+                        return interaction.showModal(modal).catch(() => safeReply({ content: '✗ Failed to open modal.', ephemeral: true }));
                     }
 
                     if (action === 'reason') {
-                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
                         if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
@@ -959,7 +961,7 @@ module.exports = {
                                     .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
                             )
                         );
-                        return interaction.showModal(modal);
+                        return interaction.showModal(modal).catch(() => safeReply({ content: '✗ Failed to open modal.', ephemeral: true }));
                     }
 
                     if (action === 'accept') {
@@ -1024,7 +1026,6 @@ module.exports = {
                     }
 
                     if (action === 'reject') {
-                        await interaction.deferReply({ ephemeral: true }).catch(() => { });
                         const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
                         if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
 
@@ -1035,7 +1036,7 @@ module.exports = {
                                     .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
                             )
                         );
-                        return interaction.showModal(modal);
+                        return interaction.showModal(modal).catch(() => safeReply({ content: '✗ Failed to open modal.', ephemeral: true }));
                     }
 
                     if (action === 'close') {
@@ -1064,6 +1065,8 @@ module.exports = {
                 if (!app) return safeEdit({ content: '✗ Application not found.' });
                 if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
+                if (interaction.user.id === app.userId) return safeEdit({ content: '✗ Applicants cannot use staff controls.' });
+
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
                 if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
@@ -1084,6 +1087,8 @@ module.exports = {
                 const app = await StaffApplication.findById(appId).catch(() => null);
                 if (!app) return safeEdit({ content: '✗ Application not found.' });
                 if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
+
+                if (interaction.user.id === app.userId) return safeEdit({ content: '✗ Applicants cannot use staff controls.' });
 
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
                 if (!ok) return safeEdit({ content: '✗ Staff only.' });
@@ -1106,6 +1111,8 @@ module.exports = {
                 if (!app) return safeEdit({ content: '✗ Application not found.' });
                 if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
 
+                if (interaction.user.id === app.userId) return safeEdit({ content: '✗ Applicants cannot use staff controls.' });
+
                 const ok = await canStaffInteract(interaction.guild, interaction.user.id, app.departmentRoleId);
                 if (!ok) return safeEdit({ content: '✗ Staff only.' });
 
@@ -1126,6 +1133,8 @@ module.exports = {
                 const app = await StaffApplication.findById(appId).catch(() => null);
                 if (!app) return safeEdit({ content: '✗ Application not found.' });
                 if (interaction.channelId !== app.channelId) return safeEdit({ content: '✗ Use this in the application channel.' });
+
+                if (interaction.user.id === app.userId) return safeEdit({ content: '✗ Applicants cannot use staff controls.' });
 
                 const ok = await isOwnerOrAdmin(interaction.guild, interaction.user.id);
                 if (!ok) return safeEdit({ content: '✗ Owner/Admin only.' });
