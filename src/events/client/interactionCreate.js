@@ -675,7 +675,13 @@ module.exports = {
                 const existingActive = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['draft', 'submitted', 'under_review'] } }).catch(() => null);
                 if (existingActive) {
                     const chId = existingActive?.channelId;
-                    return safeReply({ content: `✗ You already have an active application.${chId ? `\nChannel: <#${chId}>` : ''}`, ephemeral: true });
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`staffapp:close_active:${String(existingActive._id)}`)
+                            .setStyle(ButtonStyle.Secondary)
+                            .setLabel('Close the active application')
+                    );
+                    return safeReply({ content: `✗ You already have an active application.${chId ? `\nChannel: <#${chId}>` : ''}`, components: [row], ephemeral: true });
                 }
 
                 const last = await StaffApplication.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: { $in: ['accepted', 'rejected', 'closed'] } })
@@ -880,6 +886,37 @@ module.exports = {
                 }
 
                 return safeEdit({ content: `✓ Submitted. Channel: <#${appChannel.id}>`, components: [] });
+            }
+
+            // Applicant closes their own active application (ephemeral button)
+            if (interaction.isButton?.() && String(interaction.customId || '').startsWith('staffapp:close_active:')) {
+                if (!interaction.guild) return safeReply({ content: '✗ Server only.', ephemeral: true });
+                await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                const appId = String(interaction.customId).split(':')[2];
+                const app = await StaffApplication.findById(appId).catch(() => null);
+                if (!app) return safeEdit({ content: '✗ Application not found.' });
+                if (app.guildId !== interaction.guild.id) return safeEdit({ content: '✗ Invalid application.' });
+                if (app.userId !== interaction.user.id) return safeEdit({ content: '✗ You can only close your own application.' });
+                if (!['draft', 'submitted', 'under_review'].includes(app.status)) {
+                    return safeEdit({ content: '✗ This application is not active.' });
+                }
+
+                app.status = 'closed';
+                app.closedAt = new Date();
+                app.lastApplicantActivityAt = new Date();
+                await app.save().catch(() => { });
+
+                if (app.channelId) {
+                    const ch = await interaction.guild.channels.fetch(app.channelId).catch(() => null);
+                    if (ch?.isTextBased?.()) {
+                        await ch.permissionOverwrites.edit(app.userId, { ViewChannel: false }).catch(() => { });
+                        await ch.send({ content: '▫️ Application closed by the applicant.' }).catch(() => { });
+                    }
+                }
+
+                await postLog(interaction.guild, buildTranscriptEmbed(app, { decidedById: interaction.user.id, decision: 'closed_by_applicant' }));
+                return safeEdit({ content: '✓ Closed your active application.' });
             }
 
             // Staff actions in application channel
