@@ -25,6 +25,7 @@ const client = new Client({
 
 client.commands = new Collection();
 client.config = require('../config.json');
+client.bilingualThreads = new Map();
 
 const app = express();
 app.get('/', (req, res) => res.send('ELORA HUB is Online'));

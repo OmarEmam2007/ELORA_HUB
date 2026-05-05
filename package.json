@@ -13,6 +13,7 @@
   "description": "Elora Swarm - Multi-bot system with TTS Master-Slave capabilities",
   "dependencies": {
     "@discordjs/voice": "^0.19.0",
+    "@vitalets/google-translate-api": "^9.2.1",
     "@napi-rs/canvas": "^0.1.67",
     "discord.js": "^14.16.3",
     "dotenv": "^17.2.3",

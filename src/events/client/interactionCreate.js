@@ -20,6 +20,7 @@ const CustomReply = require('../../models/CustomReply');
 const THEME = require('../../utils/theme');
 const HelpCommand = require('../../commands/utility/help');
 const SettingsCommand = require('../../commands/utility/settings');
+const TraCommand = require('../../commands/utility/tra');
 const User = require('../../models/User');
 const MarriageProposal = require('../../models/MarriageProposal');
 const { withTransaction } = require('../../services/marriageService');
@@ -316,6 +317,203 @@ module.exports = {
             }
         } catch (_) {
             // ignore
+        }
+
+        // --- ▪ Translation (.tra) Interactions ---
+        try {
+            const safeReply = async (payload) => {
+                try {
+                    if (interaction.deferred || interaction.replied) return await interaction.followUp(payload);
+                    return await interaction.reply(payload);
+                } catch (_) { }
+            };
+
+            const safeUpdate = async (payload) => {
+                try {
+                    return await interaction.update(payload);
+                } catch (_) {
+                    return safeReply(payload);
+                }
+            };
+
+            const id = String(interaction.customId || '');
+            if (id.startsWith(TraCommand.ID_PREFIX)) {
+                if (interaction.isStringSelectMenu?.() && id.startsWith(`${TraCommand.ID_PREFIX}select:`)) {
+                    const parts = id.split(':');
+                    const requesterId = parts[2];
+                    const channelId = parts[3];
+                    const repliedMessageId = parts[4];
+
+                    if (interaction.user.id !== requesterId) {
+                        return safeReply({ content: '▫️ This menu is not for you.', ephemeral: true });
+                    }
+
+                    const targetLang = String(interaction.values?.[0] || '').trim();
+                    if (!targetLang) {
+                        return safeReply({ content: '▫️ Invalid language.', ephemeral: true });
+                    }
+
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                    const channel = await interaction.client.channels.fetch(channelId).catch(() => null);
+                    if (!channel?.isTextBased?.()) {
+                        return safeReply({ content: '▫️ Channel not found.', ephemeral: true });
+                    }
+
+                    const replied = await channel.messages.fetch(repliedMessageId).catch(() => null);
+                    if (!replied) {
+                        return safeReply({ content: '▫️ The replied message was deleted.', ephemeral: true });
+                    }
+
+                    const tempMsg = {
+                        reference: { messageId: repliedMessageId },
+                        channel,
+                        author: interaction.user
+                    };
+
+                    const result = await TraCommand.translateFromMessage({ message: tempMsg, user: interaction.user, targetLang });
+                    if (!result.ok) {
+                        return safeReply({ content: `✖ Failed: \`${result.error}\``, ephemeral: true });
+                    }
+
+                    const translationEmbed = TraCommand.buildTranslationEmbed({
+                        original: result.original,
+                        translated: result.translated,
+                        from: result.detected,
+                        to: targetLang,
+                        user: interaction.user
+                    });
+
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`${TraCommand.ID_PREFIX}clear:${interaction.user.id}`)
+                            .setStyle(ButtonStyle.Secondary)
+                            .setLabel('✖ Clear Favorite'),
+                        new ButtonBuilder()
+                            .setCustomId(`${TraCommand.ID_PREFIX}thread:${interaction.user.id}:${String(result.detected || 'auto')}:${String(targetLang)}`)
+                            .setStyle(ButtonStyle.Secondary)
+                            .setLabel('🌐 Open Bilingual Thread')
+                    );
+
+                    await channel.send({
+                        embeds: [translationEmbed],
+                        components: [row],
+                        reply: { messageReference: replied.id },
+                        allowedMentions: { repliedUser: false }
+                    }).catch(() => null);
+
+                    const nextComponents = TraCommand.buildSelectComponents({
+                        requesterId,
+                        channelId,
+                        repliedMessageId,
+                        disabledSave: false,
+                        savedLang: targetLang
+                    });
+
+                    nextComponents[1].components[0]
+                        .setCustomId(`${TraCommand.ID_PREFIX}save:${requesterId}:${String(targetLang)}`)
+                        .setDisabled(false);
+
+                    await safeUpdate({ components: nextComponents }).catch(() => null);
+
+                    return safeReply({ content: '▫️ Translation posted.', ephemeral: true });
+                }
+
+                if (interaction.isButton?.() && id.startsWith(`${TraCommand.ID_PREFIX}save:`)) {
+                    const parts = id.split(':');
+                    const requesterId = parts[2];
+                    const lang = parts[3];
+
+                    if (interaction.user.id !== requesterId) {
+                        return safeReply({ content: '▫️ This button is not for you.', ephemeral: true });
+                    }
+
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const res = await TraCommand.safeSetFavorite(requesterId, lang);
+                    if (!res.ok) {
+                        return safeReply({ content: '✖ Database offline. Favorite not saved.', ephemeral: true });
+                    }
+                    return safeReply({ content: `▫️ Saved favorite: \`${String(lang).toUpperCase()}\``, ephemeral: true });
+                }
+
+                if (interaction.isButton?.() && id.startsWith(`${TraCommand.ID_PREFIX}clear:`)) {
+                    const parts = id.split(':');
+                    const requesterId = parts[2];
+                    if (interaction.user.id !== requesterId) {
+                        return safeReply({ content: '▫️ This button is not for you.', ephemeral: true });
+                    }
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+                    const res = await TraCommand.safeSetFavorite(requesterId, null);
+                    if (!res.ok) {
+                        return safeReply({ content: '✖ Database offline. Favorite not cleared.', ephemeral: true });
+                    }
+                    return safeReply({ content: '▫️ Favorite cleared.', ephemeral: true });
+                }
+
+                if (interaction.isButton?.() && id.startsWith(`${TraCommand.ID_PREFIX}thread:`)) {
+                    const parts = id.split(':');
+                    const requesterId = parts[2];
+                    const langA = parts[3] || 'auto';
+                    const langB = parts[4] || 'en';
+
+                    if (interaction.user.id !== requesterId) {
+                        return safeReply({ content: '▫️ This button is not for you.', ephemeral: true });
+                    }
+
+                    if (!interaction.inGuild?.() || !interaction.channel?.isTextBased?.()) {
+                        return safeReply({ content: '▫️ Server only.', ephemeral: true });
+                    }
+
+                    await interaction.deferReply({ ephemeral: true }).catch(() => { });
+
+                    const me = interaction.guild.members.me;
+                    if (!me?.permissions?.has?.(PermissionFlagsBits.CreatePublicThreads)) {
+                        return safeReply({ content: '▫️ Missing bot permission: Create Public Threads.', ephemeral: true });
+                    }
+
+                    const baseMsg = await interaction.channel.messages.fetch(interaction.message.id).catch(() => null);
+                    if (!baseMsg) {
+                        return safeReply({ content: '▫️ Message not found.', ephemeral: true });
+                    }
+
+                    const thread = await baseMsg.startThread({
+                        name: `bilingual-${String(langA).toLowerCase()}-${String(langB).toLowerCase()}`.slice(0, 90),
+                        autoArchiveDuration: 60
+                    }).catch(() => null);
+
+                    if (!thread) {
+                        return safeReply({ content: '▫️ Failed to create thread.', ephemeral: true });
+                    }
+
+                    const state = {
+                        threadId: thread.id,
+                        guildId: interaction.guild.id,
+                        channelId: thread.parentId,
+                        lang1: String(langA),
+                        lang2: String(langB),
+                        webhookId: null
+                    };
+
+                    interaction.client.bilingualThreads?.set(thread.id, state);
+
+                    await thread.send({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setColor('#000000')
+                                .setTitle('▪ Bilingual Thread')
+                                .setDescription(`▫️ Auto-translate is active.\n▫️ Mode: [${String(langA).toUpperCase()}] ↔ [${String(langB).toUpperCase()}]`)
+                        ]
+                    }).catch(() => null);
+
+                    return safeReply({ content: '▫️ Thread opened.', ephemeral: true });
+                }
+
+                if (interaction.isButton?.() && id.startsWith(`${TraCommand.ID_PREFIX}save_pending:`)) {
+                    return safeReply({ content: '▫️ Select a language first.', ephemeral: true });
+                }
+            }
+        } catch (e) {
+            console.error('[TRA] Interaction error:', e);
         }
 
         // HUB must not handle moderation/security interactions (owned by SHIELD)

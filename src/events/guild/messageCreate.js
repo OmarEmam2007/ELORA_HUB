@@ -6,6 +6,7 @@ const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { notifyWindowsToast } = require('../../services/windowsNotifyService');
 const { unfurlSocialLink } = require('../../services/socialUnfurlService');
+const { translateText } = require('../../services/translationService');
 
 const SOCIAL_VIDEO_DEBUG = process.env.SOCIAL_VIDEO_DEBUG === '1';
 
@@ -57,6 +58,79 @@ module.exports = {
 
         const isDisboardMessage = message.author?.id === DISBOARD_BOT_ID;
         if (!isDisboardMessage && (message.author?.bot || message.webhookId)) return;
+
+        // --- ▪ Bilingual Auto-Translate Thread Mode ---
+        try {
+            if (message.channel?.isThread?.() && client?.bilingualThreads?.has?.(message.channel.id)) {
+                const state = client.bilingualThreads.get(message.channel.id);
+
+                const raw = String(message.content || '').trim();
+                if (!raw) return;
+
+                const detect = await translateText(raw, { to: state.lang2, from: 'auto' });
+                if (!detect.ok) return;
+
+                const detected = String(detect.detected || 'auto');
+                const lang1 = String(state.lang1 || 'auto');
+                const lang2 = String(state.lang2 || 'en');
+
+                const target = (detected && detected.toLowerCase() === lang2.toLowerCase()) ? lang1 : lang2;
+
+                const translated = await translateText(raw, { to: target, from: 'auto' });
+                if (!translated.ok) return;
+
+                const thread = message.channel;
+                const parent = thread.parent;
+                let usedWebhook = false;
+
+                if (parent?.fetchWebhooks && parent?.createWebhook) {
+                    try {
+                        let webhook = null;
+                        if (state.webhookId) {
+                            const hooks = await parent.fetchWebhooks().catch(() => null);
+                            webhook = hooks?.get?.(state.webhookId) || null;
+                        }
+
+                        if (!webhook) {
+                            const hooks = await parent.fetchWebhooks().catch(() => null);
+                            webhook = hooks?.find?.((w) => w?.owner?.id === client.user.id && w?.name === 'Bilingual Mirror') || null;
+                        }
+
+                        if (!webhook) {
+                            webhook = await parent.createWebhook({
+                                name: 'Bilingual Mirror',
+                                reason: 'Bilingual translation thread'
+                            }).catch(() => null);
+                        }
+
+                        if (webhook) {
+                            state.webhookId = webhook.id;
+                            client.bilingualThreads.set(thread.id, state);
+
+                            await webhook.send({
+                                content: String(translated.text || ''),
+                                threadId: thread.id,
+                                username: message.member?.displayName || message.author.username,
+                                avatarURL: message.author.displayAvatarURL({ size: 128 })
+                            }).catch(() => null);
+                            usedWebhook = true;
+                        }
+                    } catch (_) {
+                        usedWebhook = false;
+                    }
+                }
+
+                if (!usedWebhook) {
+                    await thread.send({
+                        content: `▪ ${message.member?.displayName || message.author.username} [${String(target).toUpperCase()}]\n${String(translated.text || '')}`
+                    }).catch(() => null);
+                }
+
+                return;
+            }
+        } catch (e) {
+            console.error('[TRA] Thread auto-translate error:', e);
+        }
 
         // --- Disboard bump reminder (2-hour timer) ---
         try {
