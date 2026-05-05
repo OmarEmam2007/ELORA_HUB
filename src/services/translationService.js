@@ -1,4 +1,10 @@
-const translateApi = require('@vitalets/google-translate-api');
+const translateModule = require('@vitalets/google-translate-api');
+
+const translateFn =
+    (typeof translateModule === 'function' && translateModule)
+    || (typeof translateModule?.translate === 'function' && translateModule.translate)
+    || (typeof translateModule?.default === 'function' && translateModule.default)
+    || null;
 
 const TOP_LANGUAGES = [
     { label: 'English', value: 'en' },
@@ -41,7 +47,11 @@ async function translateText(text, { to, from = 'auto' } = {}) {
     }
 
     try {
-        const res = await translateApi(payload, { to, from });
+        if (!translateFn) {
+            return { ok: false, error: 'TRANSLATE_FN_NOT_FOUND' };
+        }
+
+        const res = await translateFn(payload, { to, from });
         const detected = res?.from?.language?.iso || 'auto';
         return {
             ok: true,
