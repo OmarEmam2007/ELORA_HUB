@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const ModSettings = require('../../models/ModSettings');
 const mongoose = require('mongoose');
 const boostSettingsStore = require('../../services/boostSettingsStore');
+const NicknameLock = require('../../models/NicknameLock');
 
 const BOOSTER_ROLE_ID = '1482180640291029052';
 
@@ -19,6 +20,26 @@ module.exports = {
     async execute(oldMember, newMember) {
         const guild = newMember.guild;
         const DEBUG = process.env.BOOST_DEBUG === '1';
+
+        // --- ▫ Nickname Lock Enforcement ---
+        try {
+            const oldNick = oldMember?.nickname ?? null;
+            const newNick = newMember?.nickname ?? null;
+
+            if (oldNick !== newNick && mongoose.connection?.readyState === 1) {
+                const lock = await NicknameLock.findOne({ guildId: guild.id, userId: newMember.id }).catch(() => null);
+                if (lock?.locked) {
+                    const lockedNick = lock.nickname ?? null;
+                    if ((newNick ?? null) !== (lockedNick ?? null)) {
+                        if (newMember.manageable) {
+                            await newMember.setNickname(lockedNick, 'Nickname lock enforcement').catch(() => null);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[NICK_LOCK] Enforcement error:', e);
+        }
 
          // Girls role-based welcome system (trigger only when the role is added)
          try {
