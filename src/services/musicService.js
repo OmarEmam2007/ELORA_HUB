@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const THEME = require('../utils/theme');
 const {
     joinVoiceChannel,
     getVoiceConnection,
@@ -74,6 +75,7 @@ class MusicService {
     constructor(client, options = {}) {
         this.client = client;
         this.group = options.group || 'default';
+
         this.guildStates = new Map();
 
         // Best-effort init; don't block bot startup.
@@ -123,7 +125,6 @@ class MusicService {
         return connection;
     }
 
-    // --- مصدر وحيد: SoundCloud أولاً لتفادي مشاكل يوتيوب / DNS ---
     async _resolveQuery(query) {
         // If it's already a valid URL, don't search.
         if (query && typeof query === 'string') {
@@ -205,7 +206,6 @@ class MusicService {
         throw new Error('No playable results from SoundCloud or YouTube.');
     }
 
-    // --- تعديل دالة جلب الصوت لتقليل الحظر + حماية من URLs فاسدة ---
     async _getAudioUrl(videoUrl) {
         if (!videoUrl || typeof videoUrl !== 'string' || videoUrl === 'undefined') {
             throw new Error('Invalid or missing URL for streaming');
@@ -359,6 +359,14 @@ class MusicService {
         const s = this._getState(guildId);
         s.player.state.status === AudioPlayerStatus.Paused ? s.player.unpause() : s.player.pause();
     }
+    pause(guildId) {
+        const s = this._getState(guildId);
+        try { s.player.pause(); } catch (_) { }
+    }
+    resume(guildId) {
+        const s = this._getState(guildId);
+        try { s.player.unpause(); } catch (_) { }
+    }
     setVolume(guildId, vol) {
         const s = this._getState(guildId);
         s.volume = Math.max(0, Math.min(2, vol));
@@ -373,20 +381,35 @@ class MusicService {
     }
     toggleLoop(guildId) { const s = this._getState(guildId); s.looping = !s.looping; }
 
+    getQueue(guildId) {
+        const s = this._getState(guildId);
+        return {
+            nowPlaying: s.nowPlaying,
+            queue: Array.isArray(s.queue) ? [...s.queue] : [],
+            looping: Boolean(s.looping),
+            volume: Number(s.volume || 0)
+        };
+    }
+
+    getNowPlaying(guildId) {
+        const s = this._getState(guildId);
+        return s.nowPlaying;
+    }
+
     _buildControllerComponents(guildId) {
         const s = this._getState(guildId);
         const paused = s.player.state.status === AudioPlayerStatus.Paused;
         return [
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('music_toggle').setStyle(ButtonStyle.Secondary).setLabel(paused ? 'Resume' : 'Pause'),
-                new ButtonBuilder().setCustomId('music_skip').setStyle(ButtonStyle.Primary).setLabel('Skip'),
-                new ButtonBuilder().setCustomId('music_stop').setStyle(ButtonStyle.Danger).setLabel('Stop'),
-                new ButtonBuilder().setCustomId('music_loop').setStyle(s.looping ? ButtonStyle.Success : ButtonStyle.Secondary).setLabel(s.looping ? 'Loop: ON' : 'Loop: OFF'),
-                new ButtonBuilder().setCustomId('music_queue').setStyle(ButtonStyle.Secondary).setLabel('Queue')
+                new ButtonBuilder().setCustomId('music_toggle').setStyle(ButtonStyle.Secondary).setLabel(paused ? '⏵ Resume' : '⏸ Pause'),
+                new ButtonBuilder().setCustomId('music_skip').setStyle(ButtonStyle.Primary).setLabel('⏭ Skip'),
+                new ButtonBuilder().setCustomId('music_stop').setStyle(ButtonStyle.Danger).setLabel('⏹ Stop'),
+                new ButtonBuilder().setCustomId('music_loop').setStyle(s.looping ? ButtonStyle.Success : ButtonStyle.Secondary).setLabel(s.looping ? '🔁 Loop: ON' : '🔁 Loop: OFF'),
+                new ButtonBuilder().setCustomId('music_queue').setStyle(ButtonStyle.Secondary).setLabel('☰ Queue')
             ),
             new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('music_vol_down').setStyle(ButtonStyle.Secondary).setLabel('Vol -'),
-                new ButtonBuilder().setCustomId('music_vol_up').setStyle(ButtonStyle.Secondary).setLabel('Vol +')
+                new ButtonBuilder().setCustomId('music_vol_down').setStyle(ButtonStyle.Secondary).setLabel('🔉 Vol -'),
+                new ButtonBuilder().setCustomId('music_vol_up').setStyle(ButtonStyle.Secondary).setLabel('🔊 Vol +')
             )
         ];
     }
@@ -395,8 +418,8 @@ class MusicService {
         const s = this._getState(guildId);
         const now = s.nowPlaying;
         const qLines = s.queue.slice(0, 5).map((t, i) => `${i + 1}. ${t.title}`).join('\n');
-        const embed = new EmbedBuilder().setColor('#111827').setTitle('Music Control Panel').setTimestamp();
-        embed.setDescription(now ? `**Now Playing:**\n${now.title}` : '**Now Playing:**\nNothing');
+        const embed = new EmbedBuilder().setColor(THEME.COLORS.GRAVITY).setTitle('▤ MUSIC CONSOLE').setFooter(THEME.FOOTER).setTimestamp();
+        embed.setDescription(now ? `**Now Playing**\n${now.title}` : '**Now Playing**\nNothing');
         if (now?.thumbnail) embed.setThumbnail(now.thumbnail);
         embed.addFields(
             { name: 'Queue', value: qLines.length ? qLines : 'Empty', inline: false },
@@ -432,6 +455,24 @@ class MusicService {
             case 'music_loop': this.toggleLoop(gId); break;
             case 'music_vol_down': this.setVolume(gId, s.volume - 0.1); break;
             case 'music_vol_up': this.setVolume(gId, s.volume + 0.1); break;
+            case 'music_queue': {
+                const snapshot = this.getQueue(gId);
+                const embed = new EmbedBuilder()
+                    .setColor(THEME.COLORS.GRAVITY)
+                    .setTitle('▤ QUEUE')
+                    .setFooter(THEME.FOOTER)
+                    .setTimestamp();
+
+                if (snapshot.nowPlaying) {
+                    embed.addFields({ name: 'Now Playing', value: snapshot.nowPlaying.title || 'Unknown', inline: false });
+                }
+
+                const lines = snapshot.queue.slice(0, 15).map((t, i) => `${i + 1}. ${t.title}`).join('\n');
+                embed.addFields({ name: 'Up Next', value: lines || 'Empty', inline: false });
+                await interaction.reply({ embeds: [embed], ephemeral: true }).catch(() => { });
+                await this.updateController(gId).catch(() => { });
+                return;
+            }
         }
         await interaction.deferUpdate().catch(() => { });
         await this.updateController(gId).catch(() => { });

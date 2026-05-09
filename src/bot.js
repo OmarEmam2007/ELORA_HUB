@@ -6,6 +6,7 @@ initLogging();
 const express = require('express');
 const mongoose = require('mongoose');
 const { Client, GatewayIntentBits, Partials, ActivityType, Collection } = require('discord.js');
+const MusicService = require('./services/musicService');
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadPrefixCommands } = require('./handlers/prefixCommandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
@@ -26,6 +27,7 @@ const client = new Client({
 client.commands = new Collection();
 client.config = require('../config.json');
 client.bilingualThreads = new Map();
+client.music = new MusicService(client, { group: 'elora' });
 
 const app = express();
 app.get('/', (req, res) => res.send('ELORA HUB is Online'));

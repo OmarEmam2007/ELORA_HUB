@@ -20,7 +20,8 @@
     "express": "^5.2.1",
     "ffmpeg-static": "^5.2.0",
     "mongoose": "^9.1.4",
-    "node-notifier": "^10.0.1"
+    "node-notifier": "^10.0.1",
+    "play-dl": "^1.9.7"
   },
   "engines": {
     "node": ">=18.0.0"
