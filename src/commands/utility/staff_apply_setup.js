@@ -34,6 +34,9 @@ module.exports = {
                     '- Cooldown: `3 days` between applications.',
                     '- Incomplete / troll applications will be rejected.',
                     '',
+                    '**Final step (required):**',
+                    '- If accepted, you must join a VC chat interview with the staff team. This is mandatory.',
+                    '',
                     '**Start below.**'
                 ].join('\n')
             )

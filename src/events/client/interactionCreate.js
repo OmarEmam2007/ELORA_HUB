@@ -682,7 +682,10 @@ module.exports = {
                         '',
                         '- One active application at a time.',
                         '- Cooldown: `3 days` between applications.',
-                        '- Auto-close if no staff response within `24h`.'
+                        '- Auto-close if no staff response within `24h`.',
+                        '',
+                        '**Final step (required):**',
+                        '- If accepted, you must join a VC chat interview with the staff team. This is mandatory.'
                     ].join('\n')
                 )
                 .setFooter({ text: THEME.FOOTER?.text || 'ELORA', iconURL: THEME.FOOTER?.iconURL || undefined });
