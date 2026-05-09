@@ -17,6 +17,25 @@ const play = require('play-dl');
 let playDlInitPromise = null;
 let youtubeEnabled = true;
 
+function isAbortLikeError(err) {
+    const msg = String(err?.message || err || '').toLowerCase();
+    return msg.includes('aborted') || msg.includes('abort') || msg.includes('timeout') || msg.includes('timed out');
+}
+
+async function withRetries(fn, { attempts = 3, delayMs = 750 } = {}) {
+    let lastErr;
+    for (let i = 1; i <= attempts; i++) {
+        try {
+            return await fn(i);
+        } catch (e) {
+            lastErr = e;
+            if (!isAbortLikeError(e) || i === attempts) break;
+            await new Promise((r) => setTimeout(r, delayMs * i));
+        }
+    }
+    throw lastErr;
+}
+
 function isRailway() {
     return Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID);
 }
@@ -159,10 +178,10 @@ class MusicService {
         const shouldAttemptYouTubeSearch = youtubeEnabled;
 
         // 1) حاول تجيب تراك من ساوند كلاود أولاً (أكثر ثباتاً على Railway)
-        const scResults = await play.search(query, {
-            limit: 1,
-            source: { soundcloud: 'tracks' }
-        }).catch(() => []);
+        const scResults = await withRetries(
+            () => play.search(query, { limit: 1, source: { soundcloud: 'tracks' } }),
+            { attempts: 3, delayMs: 800 }
+        ).catch(() => []);
 
         if (scResults && scResults.length > 0) {
             const first = scResults[0];
@@ -252,19 +271,22 @@ class MusicService {
 
         // For YouTube, prefer video_info -> stream_from_info (more reliable).
         if (isYouTube && normalizedUrl.includes('youtube.com/watch')) {
-            const info = await play.video_info(normalizedUrl);
-            return await play.stream_from_info(info, {
-                quality: 0,
-                discordPlayerCompatibility: true
-            });
+            const info = await withRetries(() => play.video_info(normalizedUrl), { attempts: 2, delayMs: 900 });
+            return await withRetries(
+                () => play.stream_from_info(info, { quality: 0, discordPlayerCompatibility: true }),
+                { attempts: 2, delayMs: 900 }
+            );
         }
 
-        return await play.stream(normalizedUrl, {
-            quality: 0,
-            discordPlayerCompatibility: true,
-            htmert: false,
-            fallback: true
-        });
+        return await withRetries(
+            () => play.stream(normalizedUrl, {
+                quality: 0,
+                discordPlayerCompatibility: true,
+                htmert: false,
+                fallback: true
+            }),
+            { attempts: 2, delayMs: 900 }
+        );
     }
 
     async _playNow(guildId, track) {
@@ -292,10 +314,10 @@ class MusicService {
                 const fallbackQuery = track.originalQuery || track.title || urlStr;
                 console.error('[MUSIC] YouTube stream failed, falling back to SoundCloud. Query:', fallbackQuery);
 
-                const scResults = await play.search(fallbackQuery, {
-                    limit: 1,
-                    source: { soundcloud: 'tracks' }
-                }).catch(() => []);
+                const scResults = await withRetries(
+                    () => play.search(fallbackQuery, { limit: 1, source: { soundcloud: 'tracks' } }),
+                    { attempts: 3, delayMs: 800 }
+                ).catch(() => []);
 
                 const first = scResults?.[0];
                 const scUrl = first?.url;
@@ -310,11 +332,14 @@ class MusicService {
                 track.duration = first.durationInSec || track.duration;
 
                 // Important: stream SoundCloud directly (avoid YouTube-specific path).
-                stream = await play.stream(track.url, {
-                    quality: 0,
-                    discordPlayerCompatibility: true,
-                    fallback: true
-                });
+                stream = await withRetries(
+                    () => play.stream(track.url, {
+                        quality: 0,
+                        discordPlayerCompatibility: true,
+                        fallback: true
+                    }),
+                    { attempts: 2, delayMs: 900 }
+                );
             }
             const resource = createAudioResource(stream.stream, { inputType: stream.type, inlineVolume: true });
             resource.volume?.setVolume(state.volume);
@@ -323,7 +348,11 @@ class MusicService {
 
             await this.updateController(guildId).catch(() => { });
         } catch (error) {
-            console.error('Play error:', error);
+            if (isAbortLikeError(error)) {
+                console.error('Play error (aborted/timeout):', error);
+            } else {
+                console.error('Play error:', error);
+            }
             state.playing = false; await this._playNext(guildId);
         }
     }

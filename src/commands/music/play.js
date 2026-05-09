@@ -1,6 +1,11 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const THEME = require('../../utils/theme');
 
+function isAbortLikeError(err) {
+    const msg = String(err?.message || err || '').toLowerCase();
+    return msg.includes('aborted') || msg.includes('abort') || msg.includes('timeout') || msg.includes('timed out');
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
@@ -51,6 +56,11 @@ module.exports = {
 
             return interaction.editReply({ embeds: [embed] });
         } catch (e) {
+            if (isAbortLikeError(e)) {
+                return interaction.editReply({
+                    content: '❌ الطلب اتقطع (Timeout/Aborted). جرب تاني، ولو بتشغل من YouTube على استضافة بتمنعه خلّيه SoundCloud أو فعّل Cookies.'
+                });
+            }
             return interaction.editReply({ content: `❌ ${e?.message || 'Failed to play.'}` });
         }
     }
