@@ -6,6 +6,8 @@ const {
     AttachmentBuilder,
 } = require('discord.js');
 
+const mongoose = require('mongoose');
+
 const path = require('path');
 const fs = require('fs');
 
@@ -32,6 +34,16 @@ module.exports = {
     aliases: ['marry', 'proposal'],
 
     async execute(message, client, args) {
+        if (mongoose?.connection?.readyState !== 1) {
+            const embed = new EmbedBuilder()
+                .setColor('#FF4D6D')
+                .setTitle('💍 Marriage System Offline')
+                .setDescription('Database is not connected right now. Please contact the bot owner to configure MongoDB.')
+                .setFooter(THEME.FOOTER)
+                .setTimestamp();
+            return message.reply({ embeds: [embed] });
+        }
+
         const guildId = message.guild.id;
         const requester = message.author;
 
@@ -166,10 +178,17 @@ module.exports = {
         const files = [];
         if (bannerPath) {
             files.push(new AttachmentBuilder(bannerPath, { name: bannerName }));
+            proposalEmbed.setThumbnail(`attachment://${bannerName}`);
             proposalEmbed.setImage(`attachment://${bannerName}`);
         }
 
-        const msg = await message.reply({ embeds: [proposalEmbed], components: [proposalRow(proposal._id.toString())], files });
-        await MarriageProposal.updateOne({ _id: proposal._id }, { $set: { messageId: msg.id } }).exec().catch(() => { });
+        const sent = await message.reply({ embeds: [proposalEmbed], components: [proposalRow(proposal.id)], files });
+
+        await MarriageProposal.updateOne(
+            { _id: proposal._id },
+            { $set: { messageId: sent?.id || null } }
+        ).exec().catch(() => { });
+
+        return;
     },
 };
