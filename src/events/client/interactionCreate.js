@@ -144,6 +144,20 @@ module.exports = {
             if (interaction.isButton?.()) {
                 const id = String(interaction.customId || '');
 
+                if (id.startsWith('welcome_wave_')) {
+                    const targetId = id.slice('welcome_wave_'.length).trim();
+                    await interaction.deferUpdate().catch(() => { });
+                    if (!interaction.channel || !interaction.channel.isTextBased?.()) return;
+
+                    const stickerId = '749054660769218631';
+                    await interaction.channel
+                        .send({ content: `👋 <@${targetId}>`, stickers: [stickerId] })
+                        .catch(async () => {
+                            await interaction.channel.send({ content: `👋 <@${targetId}>` }).catch(() => { });
+                        });
+                    return;
+                }
+
                 // Global counter buttons
                 if (id.startsWith('dhikr_global:')) {
                     if (!interaction.guild) return;

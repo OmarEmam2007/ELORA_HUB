@@ -1,4 +1,4 @@
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const path = require('path');
 const fs = require('fs');
 const InviteStats = require('../../models/InviteStats');
@@ -524,7 +524,14 @@ module.exports = {
                 .map((line) => `> ${line}`)
                 .join('\n');
 
-            await channel.send({ content, files: bannerFile ? [bannerFile] : [] }).catch(() => { });
+            const waveRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`welcome_wave_${member.id}`)
+                    .setLabel('𝐖𝐀𝐕𝐄')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            await channel.send({ content, files: bannerFile ? [bannerFile] : [], components: [waveRow] }).catch(() => { });
 
             // 8. Assign Nickname? (Requires permissions, risky if owner)
             // if (member.manageable) {
