@@ -144,8 +144,8 @@ module.exports = {
             if (interaction.isButton?.()) {
                 const id = String(interaction.customId || '');
 
-                if (id.startsWith('welcome_wave_')) {
-                    const targetId = id.slice('welcome_wave_'.length).trim();
+                if (id.startsWith('welcome_say_hi_')) {
+                    const targetId = id.slice('welcome_say_hi_'.length).trim();
                     await interaction.deferUpdate().catch(() => { });
                     if (!interaction.channel || !interaction.channel.isTextBased?.()) return;
 

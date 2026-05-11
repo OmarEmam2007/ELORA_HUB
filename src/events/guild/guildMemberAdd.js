@@ -42,10 +42,17 @@ module.exports = {
                 const emoji = `<a:316591done:1487391271759646750>`;
                 const text = `**${toSmallCaps('WELCOME TO ELORA')} ${member}, ${toSmallCaps('ENJOY')} ${emoji}**`;
 
+                const sayHiRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`welcome_say_hi_${member.id}`)
+                        .setLabel('sᴀʏ ʜɪ')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
                 for (const channelId of extraChannelIds) {
                     const ch = await member.guild.channels.fetch(channelId).catch(() => null);
                     if (ch && ch.isTextBased?.()) {
-                        await ch.send({ content: text }).catch(() => { });
+                        await ch.send({ content: text, components: [sayHiRow] }).catch(() => { });
                     }
                 }
             } catch (_) {
@@ -524,14 +531,7 @@ module.exports = {
                 .map((line) => `> ${line}`)
                 .join('\n');
 
-            const waveRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`welcome_wave_${member.id}`)
-                    .setLabel('𝐖𝐀𝐕𝐄')
-                    .setStyle(ButtonStyle.Secondary)
-            );
-
-            await channel.send({ content, files: bannerFile ? [bannerFile] : [], components: [waveRow] }).catch(() => { });
+            await channel.send({ content, files: bannerFile ? [bannerFile] : [] }).catch(() => { });
 
             // 8. Assign Nickname? (Requires permissions, risky if owner)
             // if (member.manageable) {
