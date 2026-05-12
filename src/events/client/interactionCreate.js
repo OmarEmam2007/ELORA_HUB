@@ -4490,7 +4490,7 @@ module.exports = {
             }
 
             const messageModal = new ModalBuilder()
-                .setCustomId(`whisper_modal_${type}_${targetUserId}`)
+                .setCustomId(`whisper_msg_modal_${type}_${targetUserId}`)
                 .setTitle('WHISPER MESSAGE');
 
             const messageInput = new TextInputBuilder()
@@ -4510,7 +4510,7 @@ module.exports = {
             const targetUserId = interaction.values[0];
 
             const modal = new ModalBuilder()
-                .setCustomId(`whisper_modal_${type}_${targetUserId}`)
+                .setCustomId(`whisper_msg_modal_${type}_${targetUserId}`)
                 .setTitle('WHISPER MESSAGE');
 
             const messageInput = new TextInputBuilder()
@@ -4525,12 +4525,12 @@ module.exports = {
             return interaction.showModal(modal);
         }
 
-        if (interaction.isModalSubmit() && interaction.customId.startsWith('whisper_modal_')) {
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('whisper_msg_modal_')) {
             if (!interaction.guild) return safeReply({ content: '**❌ This can only be used in a server.**', ephemeral: true });
 
             const parts = interaction.customId.split('_');
-            const type = parts[2]; // 'private' or 'public'
-            const targetId = parts[3];
+            const type = parts[3]; // 'private' or 'public'
+            const targetId = parts[4];
             const content = interaction.fields.getTextInputValue('whisper_message');
 
             const WHISPER_LOG_CHANNEL_ID = '1482523605882638427';
