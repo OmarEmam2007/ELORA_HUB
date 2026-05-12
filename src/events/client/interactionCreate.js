@@ -4481,6 +4481,27 @@ module.exports = {
             return interaction.showModal(modal);
         }
 
+        if (interaction.isButton() && interaction.customId.startsWith('whisper_msg_btn_')) {
+            const parts = interaction.customId.split('_');
+            const type = parts[3];
+            const targetUserId = parts[4];
+
+            const messageModal = new ModalBuilder()
+                .setCustomId(`whisper_msg_modal_${type}_${targetUserId}`)
+                .setTitle('WHISPER MESSAGE');
+
+            const messageInput = new TextInputBuilder()
+                .setCustomId('whisper_message')
+                .setLabel('MESSAGE CONTENT')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('Enter your secret message here...')
+                .setRequired(true);
+
+            messageModal.addComponents(new ActionRowBuilder().addComponents(messageInput));
+
+            return interaction.showModal(messageModal);
+        }
+
         if (interaction.isModalSubmit() && interaction.customId.startsWith('whisper_manual_modal_')) {
             try {
                 console.log('[WHISPER DEBUG] Manual modal submit received:', interaction.customId);
@@ -4495,21 +4516,20 @@ module.exports = {
                     return safeReply({ content: '**❌ Invalid User ID format.**', ephemeral: true });
                 }
 
-                const messageModal = new ModalBuilder()
-                    .setCustomId(`whisper_msg_modal_${type}_${targetUserId}`)
-                    .setTitle('WHISPER MESSAGE');
+                // Create a new interaction flow - we can't show modal from modal submit
+                // Instead, we'll send a follow-up message with a button to open the message modal
+                const messageModalBtn = new ButtonBuilder()
+                    .setCustomId(`whisper_msg_btn_${type}_${targetUserId}`)
+                    .setLabel('📝 Compose Message')
+                    .setStyle(ButtonStyle.Primary);
 
-                const messageInput = new TextInputBuilder()
-                    .setCustomId('whisper_message')
-                    .setLabel('MESSAGE CONTENT')
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setPlaceholder('Enter your secret message here...')
-                    .setRequired(true);
+                const row = new ActionRowBuilder().addComponents(messageModalBtn);
 
-                messageModal.addComponents(new ActionRowBuilder().addComponents(messageInput));
-                
-                console.log('[WHISPER DEBUG] Showing message modal...');
-                return interaction.showModal(messageModal);
+                return safeReply({
+                    content: `**✅ User ID validated: ${targetUserId}**\nClick the button below to compose your ${type} whisper message:`,
+                    components: [row],
+                    ephemeral: true
+                });
             } catch (error) {
                 console.error('[WHISPER DEBUG] Error in manual modal:', error);
                 return safeReply({ content: '**❌ An error occurred. Please try again.**', ephemeral: true });
