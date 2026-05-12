@@ -4424,11 +4424,17 @@ module.exports = {
                 .setMinValues(1)
                 .setMaxValues(1);
 
-            const row = new ActionRowBuilder().addComponents(userSelect);
+            const manualInputBtn = new ButtonBuilder()
+                .setCustomId(`whisper_manual_input_${type}`)
+                .setLabel('🔤 Enter User ID Manually')
+                .setStyle(ButtonStyle.Secondary);
+
+            const row1 = new ActionRowBuilder().addComponents(userSelect);
+            const row2 = new ActionRowBuilder().addComponents(manualInputBtn);
 
             return safeReply({
                 content: `**Select the user you want to send a ${type} whisper to:**`,
-                components: [row],
+                components: [row1, row2],
                 ephemeral: true
             });
         }
@@ -4453,6 +4459,50 @@ module.exports = {
 
             modal.addComponents(new ActionRowBuilder().addComponents(input));
             return interaction.showModal(modal);
+        }
+
+        if (interaction.isButton() && interaction.customId.startsWith('whisper_manual_input_')) {
+            const type = interaction.customId.split('_').pop();
+
+            const modal = new ModalBuilder()
+                .setCustomId(`whisper_manual_modal_${type}`)
+                .setTitle('ENTER USER ID');
+
+            const userIdInput = new TextInputBuilder()
+                .setCustomId('whisper_user_id')
+                .setLabel('USER ID')
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('Enter the Discord User ID...')
+                .setRequired(true)
+                .setMaxLength(20);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(userIdInput));
+
+            return interaction.showModal(modal);
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('whisper_manual_modal_')) {
+            const type = interaction.customId.split('_').pop();
+            const targetUserId = interaction.fields.getTextInputValue('whisper_user_id').trim();
+
+            if (!/^\d{17,20}$/.test(targetUserId)) {
+                return safeReply({ content: '**❌ Invalid User ID format.**', ephemeral: true });
+            }
+
+            const messageModal = new ModalBuilder()
+                .setCustomId(`whisper_modal_${type}_${targetUserId}`)
+                .setTitle('WHISPER MESSAGE');
+
+            const messageInput = new TextInputBuilder()
+                .setCustomId('whisper_message')
+                .setLabel('MESSAGE CONTENT')
+                .setStyle(TextInputStyle.Paragraph)
+                .setPlaceholder('Enter your secret message here...')
+                .setRequired(true);
+
+            messageModal.addComponents(new ActionRowBuilder().addComponents(messageInput));
+
+            return interaction.showModal(messageModal);
         }
 
         if (interaction.isUserSelectMenu() && interaction.customId.startsWith('whisper_user_select_')) {

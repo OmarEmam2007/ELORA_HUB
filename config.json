@@ -16,6 +16,11 @@
         "info": 39423,
         "primary": 3092790
     },
+    "whisper": {
+        "apiKey": "",
+        "logChannelId": "1482523605882638427",
+        "publicChannelId": "1462025794481164461"
+    },
     "lifeSim": {
         "roles": {
             "dynastyHead": "1467897663914770695",
