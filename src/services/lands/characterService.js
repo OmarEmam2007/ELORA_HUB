@@ -2,6 +2,7 @@ const LandsCharacter = require('../../models/LandsCharacter');
 const { getClass } = require('../../data/lands/classes');
 const { getItem } = require('../../data/lands/items');
 const { canEnterZone, getZone, listUnlockedZones } = require('../../data/lands/zones');
+const { resolveLang } = require('./i18n');
 
 function xpToNext(level) {
     return Math.floor(100 * level * (1 + level * 0.15));
@@ -37,22 +38,24 @@ async function findCharacter(userId, guildId) {
 
 async function createCharacter(userId, guildId, name, classKey) {
     const existing = await findCharacter(userId, guildId);
-    if (existing) return { ok: false, error: 'عندك شخصية بالفعل. استخدم `.lands profile`.' };
+    if (existing) return { ok: false, errorKey: 'alreadyHasCharacter' };
 
     const cls = getClass(classKey);
-    if (!cls) return { ok: false, error: 'الفئة غلط. اختار: محارب / ساحر / قاتل / راعي' };
+    if (!cls) return { ok: false, errorKey: 'badClass' };
 
     const cleanName = String(name || '').trim().slice(0, 24);
-    if (cleanName.length < 2) return { ok: false, error: 'الاسم لازم يكون حرفين على الأقل.' };
+    if (cleanName.length < 2) return { ok: false, errorKey: 'nameTooShort' };
 
     const stats = { ...cls.baseStats };
     const maxHp = calcMaxHp(stats, 1);
+    const locale = await resolveLang(userId, guildId);
 
     const char = await LandsCharacter.create({
         userId,
         guildId,
         name: cleanName,
         classId: cls.id,
+        locale,
         stats,
         hp: maxHp,
         maxHp,
@@ -113,8 +116,6 @@ function getEffectiveStats(char) {
 }
 
 async function allocateStat(userId, guildId, statName) {
-    const allowed = ['strength', 'agility', 'intelligence', 'luck', 'vitality'];
-    const key = String(statName || '').toLowerCase();
     const map = {
         strength: 'strength',
         str: 'strength',
@@ -131,14 +132,12 @@ async function allocateStat(userId, guildId, statName) {
         vit: 'vitality',
         حيوية: 'vitality'
     };
-    const resolved = map[key];
-    if (!resolved || !allowed.includes(resolved)) {
-        return { ok: false, error: 'المهارة غلط. استخدم: strength / agility / intelligence / luck / vitality' };
-    }
+    const resolved = map[String(statName || '').toLowerCase()];
+    if (!resolved) return { ok: false, errorKey: 'badStat' };
 
     const char = await findCharacter(userId, guildId);
-    if (!char) return { ok: false, error: 'مفيش شخصية. ابدأ بـ `.lands start`' };
-    if (char.skillPoints < 1) return { ok: false, error: 'مفيش نقاط مهارات متاحة.' };
+    if (!char) return { ok: false, errorKey: 'noCharacter' };
+    if (char.skillPoints < 1) return { ok: false, errorKey: 'noSkillPoints' };
 
     char.skillPoints -= 1;
     char.stats[resolved] += 1;
@@ -152,8 +151,8 @@ async function allocateStat(userId, guildId, statName) {
 
 async function travel(userId, guildId, zoneId) {
     const char = await findCharacter(userId, guildId);
-    if (!char) return { ok: false, error: 'مفيش شخصية. ابدأ بـ `.lands start`' };
-    if (char.inCombat) return { ok: false, error: 'انت في قتال دلوقتي. خلّصه الأول.' };
+    if (!char) return { ok: false, errorKey: 'noCharacter' };
+    if (char.inCombat) return { ok: false, errorKey: 'inCombatFinish' };
 
     const check = canEnterZone(zoneId, char.level, char.reputation);
     if (!check.ok) return check;
@@ -165,10 +164,10 @@ async function travel(userId, guildId, zoneId) {
 
 async function rest(userId, guildId) {
     const char = await findCharacter(userId, guildId);
-    if (!char) return { ok: false, error: 'مفيش شخصية.' };
-    if (char.inCombat) return { ok: false, error: 'مش هتقدر ترتاح وانت بتتقاتل.' };
+    if (!char) return { ok: false, errorKey: 'noCharacterShort' };
+    if (char.inCombat) return { ok: false, errorKey: 'cantRestInCombat' };
     const cost = Math.max(5, Math.floor(char.level * 3));
-    if (char.gold < cost) return { ok: false, error: `الراحة بتكلف **${cost}** ذهب.` };
+    if (char.gold < cost) return { ok: false, errorKey: 'restCost', errorVars: { cost } };
     char.gold -= cost;
     char.hp = char.maxHp;
     await char.save();

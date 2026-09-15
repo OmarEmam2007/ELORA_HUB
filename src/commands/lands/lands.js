@@ -13,202 +13,71 @@ const { getZone, listUnlockedZones } = require('../../data/lands/zones');
 const characterService = require('../../services/lands/characterService');
 const combatService = require('../../services/lands/combatService');
 const questService = require('../../services/lands/questService');
+const i18n = require('../../services/lands/i18n');
 
-const STAT_AR = {
-    strength: 'قوة',
-    agility: 'رشاقة',
-    intelligence: 'ذكاء',
-    luck: 'حظ',
-    vitality: 'حيوية'
-};
+function errMsg(lang, res) {
+    if (!res) return i18n.t(lang, 'actionFailed');
+    if (res.error) return res.error;
+    if (res.errorKey) return i18n.t(lang, res.errorKey, res.errorVars || {});
+    if (res.reason) return res.reason;
+    return i18n.t(lang, 'actionFailed');
+}
 
-function baseEmbed(title) {
+function baseEmbed(lang, title) {
     return new EmbedBuilder()
         .setColor(THEME.COLORS.ACCENT)
         .setTitle(title)
-        .setFooter({ text: 'الأرض المنسية • The Forgotten Lands' })
+        .setFooter({ text: i18n.t(lang, 'footer') })
         .setTimestamp();
 }
 
-const HELP_PAGES = [
-    {
-        id: 'world',
-        label: 'العالم',
-        color: THEME.COLORS.ACCENT,
-        title: '🌫️ الأرض المنسية',
-        description: [
-            '*العالم ده مبتخلصش.*',
-            'مفيش نهاية سعيدة… وفيه نهاية أسوأ لو ماتّ كتير.',
-            '',
-            'دي أرض نسيها الزمن. كل لاعب ليه **أسطورة خاصة** بتكبر معاه،',
-            'والوحوش بتتعلم من طريقة لعبك، والمناطق بتتفتح لما تستاهلها.',
-            '',
-            '▸ شخصيتك دائمة',
-            '▸ قراراتك ليها ثمن',
-            '▸ كل يوم مهمة جديدة',
-            '▸ كل قتال قصة قصيرة',
-            '',
-            'اضغط الأزرار تحت وتعلّم إزاي تدخل العالم.'
-        ].join('\n')
-    },
-    {
-        id: 'birth',
-        label: 'الولادة',
-        color: '#9B8CFF',
-        title: '🌅 أول نفس — إنشاء شخصية',
-        description: [
-            'قبل أي سيف أو تعويذة… اختار **مين هتكون**.',
-            '',
-            '```',
-            '.land start <اسمك> <فئتك>',
-            '```',
-            'مثال: `.land start راكان محارب`',
-            '',
-            '**الفئات الأربع**',
-            '⚔️ **محارب** — ضرب ثقيل وصمود. مهارة: *ضربة ساحقة*',
-            '🔮 **ساحر** — سحر ناري وحرق. مهارة: *كرة نارية*',
-            '🗡️ **قاتل** — سرعة وسم. مهارة: *طعنة السم*',
-            '🌿 **راعي** — شفاء وتوازن. مهارة: *بركة الطبيعة*',
-            '',
-            'هتبدأ في **حافة الضباب** بذهب بسيط، عشبة شفاء، وسلاح فئة.'
-        ].join('\n')
-    },
-    {
-        id: 'loop',
-        label: 'الإيقاع',
-        color: THEME.COLORS.SUCCESS,
-        title: '🔁 إيقاع المغامرة',
-        description: [
-            'اللعبة بتتلعب كحلقة حلوة… وكل لفة بتكبّرك:',
-            '',
-            '**١)** شوف نفسك → `.land profile`',
-            '**٢)** اطلع للضباب → `.land hunt`',
-            '**٣)** اقاتل بالأزرار (هجوم / مهارة / غرض / هروب)',
-            '**٤)** اجمع XP وذهب وأغراض',
-            '**٥)** لو اتصابت → `.land rest`',
-            '**٦)** كل يوم → `.land quest` وبعدين `.land claim`',
-            '',
-            'لما تطلع مستوى هتاخد **٣ نقاط مهارات**.',
-            'اصرفهم بحكمة:',
-            '`.land allocate قوة` أو `رشاقة` / `ذكاء` / `حظ` / `حيوية`',
-            '',
-            '*السمعة بتفتح أراضي أخطر. المستوى لوحده مش كفاية.*'
-        ].join('\n')
-    },
-    {
-        id: 'combat',
-        label: 'القتال',
-        color: THEME.COLORS.WARNING,
-        title: '⚔️ القتال الدوري',
-        description: [
-            'القتال **مش زر عشوائي** — كل دور اختيار.',
-            '',
-            '🔴 **هجوم** — ضرر ثابت حسب فئتك',
-            '🔵 **مهارة** — ضربة خاصة (فيها كولداون)',
-            '🟢 **عشبة شفاء** — تنقذ حياتك في اللحظة الصح',
-            '⚪ **هروب** — مش مضمون… والفضيحة ليها ثمن أحيانًا',
-            '',
-            'في سمّ، حرق، خوف… ولو اتشللت الدور ممكن يعدّي من غيرك.',
-            '',
-            '🧠 **الوحوش بتتذكرك.**',
-            'لو بتشفي كتير → هتضغط عليك.',
-            'لو بتكرّر المهارة → هتتعلم تقاوم.',
-            '',
-            'تقدر كمان تكتب:',
-            '`.land attack` · `.land skill` · `.land item` · `.land flee`'
-        ].join('\n')
-    },
-    {
-        id: 'danger',
-        label: 'الخطر',
-        color: THEME.COLORS.ERROR,
-        title: '💀 الموت والعالم',
-        description: [
-            'الموت هنا **مش ريسبون لطيف**.',
-            '',
-            '▸ بتخسر خبرة',
-            '▸ ممكن تخسر غرض من المخزون',
-            '▸ بترجع بحياة ضعيفة… محتاج راحة',
-            '',
-            '🗺️ **المناطق**',
-            '`.land zones` — شوف اللي اتفتح لك',
-            '`.land travel misty_edge` — ارجع للحافة',
-            '`.land travel bone_hollow` — وادي العظام (مستوى + سمعة)',
-            '',
-            '📋 **المهمة اليومية** بتتجدد كل يوم.',
-            ' خلّصها، وبعدين `.land claim` عشان المكافأة.',
-            '',
-            'اللعبة مستمرة. كل ما تقدّم… العالم يكبر ويتوحّش أكتر.'
-        ].join('\n')
-    },
-    {
-        id: 'cmds',
-        label: 'الأوامر',
-        color: THEME.COLORS.SECONDARY,
-        title: '⌨️ مرجع سريع',
-        description: [
-            'كل الأوامر تشتغل بـ `.land` أو `elora lands` أو `/lands`',
-            '',
-            '`start` `profile` `inv` `allocate` `rest`',
-            '`zones` `travel` `hunt`',
-            '`quest` `claim`',
-            '`attack` `skill` `item` `flee` `help`',
-            '',
-            '**أول ١٠ دقايق المقترحة**',
-            '① `.land start اسمك فئتك`',
-            '② `.land hunt` → اضغط الأزرار',
-            '③ `.land quest`',
-            '④ `.land profile` وشوف إنت فين',
-            '',
-            '*مرحباً بك في النسيان… خليك أسوأ كابوس للضباب.*'
-        ].join('\n')
-    }
-];
-
-function helpEmbed(pageIndex = 0) {
-    const total = HELP_PAGES.length;
+function helpEmbed(lang, pageIndex = 0) {
+    const pages = i18n.helpPages(lang);
+    const total = pages.length;
     const i = ((pageIndex % total) + total) % total;
-    const page = HELP_PAGES[i];
+    const page = pages[i];
 
     return new EmbedBuilder()
         .setColor(page.color)
         .setTitle(page.title)
         .setDescription(page.description)
         .addFields({
-            name: 'الدليل',
-            value: HELP_PAGES.map((p, idx) => (idx === i ? `**▸ ${p.label}**` : `· ${p.label}`)).join('   '),
+            name: i18n.t(lang, 'guideNav'),
+            value: pages.map((p, idx) => (idx === i ? `**▸ ${p.label}**` : `· ${p.label}`)).join('   '),
             inline: false
         })
-        .setFooter({ text: `الأرض المنسية • صفحة ${i + 1}/${total} • دليل المغامر` })
+        .setFooter({ text: i18n.t(lang, 'guideFooter', { page: i + 1, total }) })
         .setTimestamp();
 }
 
-function helpButtons(pageIndex = 0, disabled = false) {
-    const total = HELP_PAGES.length;
+function helpButtons(lang, pageIndex = 0, disabled = false) {
+    const pages = i18n.helpPages(lang);
+    const total = pages.length;
     const i = ((pageIndex % total) + total) % total;
     return [
         new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId(`landshelp:prev:${i}`)
-                .setLabel('السابق')
+                .setCustomId(`landshelp:prev:${i}:${lang}`)
+                .setLabel(i18n.t(lang, 'btnPrev'))
                 .setStyle(ButtonStyle.Secondary)
                 .setDisabled(disabled),
             new ButtonBuilder()
-                .setCustomId(`landshelp:next:${i}`)
-                .setLabel('التالي')
+                .setCustomId(`landshelp:next:${i}:${lang}`)
+                .setLabel(i18n.t(lang, 'btnNext'))
                 .setStyle(ButtonStyle.Primary)
                 .setDisabled(disabled),
             new ButtonBuilder()
-                .setCustomId(`landshelp:close:${i}`)
-                .setLabel('إغلاق')
+                .setCustomId(`landshelp:close:${i}:${lang}`)
+                .setLabel(i18n.t(lang, 'btnClose'))
                 .setStyle(ButtonStyle.Danger)
                 .setDisabled(disabled)
         )
     ];
 }
 
-async function attachHelpCollector(message, ownerId, startPage = 0) {
+async function attachHelpCollector(message, ownerId, lang, startPage = 0) {
     let page = startPage;
+    let currentLang = lang;
     const collector = message.createMessageComponentCollector({
         time: 4 * 60_000,
         filter: (i) => String(i.customId || '').startsWith('landshelp:')
@@ -217,16 +86,21 @@ async function attachHelpCollector(message, ownerId, startPage = 0) {
     collector.on('collect', async (i) => {
         try {
             if (i.user.id !== ownerId) {
-                await i.reply({ content: 'الدليل ده مش بتاعك… افتح `.land help` لنفسك.', ephemeral: true });
+                await i.reply({ content: i18n.t(currentLang, 'notYourGuide'), ephemeral: true });
                 return;
             }
 
-            const [, action, raw] = String(i.customId).split(':');
-            const current = Number(raw) || page;
+            const parts = String(i.customId).split(':');
+            const action = parts[1];
+            const current = Number(parts[2]) || page;
+            currentLang = parts[3] === 'en' ? 'en' : 'ar';
 
             if (action === 'close') {
                 collector.stop('close');
-                await i.update({ embeds: [helpEmbed(current)], components: helpButtons(current, true) });
+                await i.update({
+                    embeds: [helpEmbed(currentLang, current)],
+                    components: helpButtons(currentLang, current, true)
+                });
                 return;
             }
 
@@ -234,9 +108,12 @@ async function attachHelpCollector(message, ownerId, startPage = 0) {
             else if (action === 'next') page = current + 1;
             else page = current;
 
-            const total = HELP_PAGES.length;
+            const total = i18n.helpPages(currentLang).length;
             page = ((page % total) + total) % total;
-            await i.update({ embeds: [helpEmbed(page)], components: helpButtons(page, false) });
+            await i.update({
+                embeds: [helpEmbed(currentLang, page)],
+                components: helpButtons(currentLang, page, false)
+            });
         } catch (e) {
             console.error('[lands help]', e);
         }
@@ -244,89 +121,136 @@ async function attachHelpCollector(message, ownerId, startPage = 0) {
 
     collector.on('end', async () => {
         try {
-            await message.edit({ components: helpButtons(page, true) });
+            await message.edit({ components: helpButtons(currentLang, page, true) });
         } catch (_) {}
     });
 }
 
-async function runHelp(ctx) {
-    const sent = await ctx.reply({ embeds: [helpEmbed(0)], components: helpButtons(0) }, true);
-    if (sent) await attachHelpCollector(sent, ctx.userId, 0);
+async function runHelp(ctx, lang) {
+    const sent = await ctx.reply(
+        { embeds: [helpEmbed(lang, 0)], components: helpButtons(lang, 0) },
+        true
+    );
+    if (sent) await attachHelpCollector(sent, ctx.userId, lang, 0);
 }
 
-function profileEmbed(char, user) {
+function profileEmbed(char, user, lang) {
     const cls = getClass(char.classId);
     const zone = getZone(char.zoneId);
     const need = characterService.xpToNext(char.level);
     const rawStats = char.stats?.toObject ? char.stats.toObject() : { ...(char.stats || {}) };
     const stats = Object.entries(rawStats)
-        .filter(([k]) => STAT_AR[k])
-        .map(([k, v]) => `**${STAT_AR[k]}**: ${v}`)
+        .filter(([k]) => ['strength', 'agility', 'intelligence', 'luck', 'vitality'].includes(k))
+        .map(([k, v]) => `**${i18n.statLabel(lang, k)}**: ${v}`)
         .join(' · ');
 
-    return baseEmbed(`📜 ${char.name}`)
+    return baseEmbed(lang, `📜 ${char.name}`)
         .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-        .setDescription(`<@${char.userId}> — **${cls?.nameAr || char.classId}**`)
+        .setDescription(`<@${char.userId}> — **${i18n.localeName(cls, lang)}**`)
         .addFields(
             {
-                name: 'التقدّم',
-                value: `مستوى **${char.level}** | XP **${char.xp}/${need}**\nذهب **${char.gold}** | سمعة **${char.reputation}**\nنقاط مهارات **${char.skillPoints}**`,
+                name: i18n.t(lang, 'progress'),
+                value: i18n.t(lang, 'progressVal', {
+                    level: char.level,
+                    xp: char.xp,
+                    need,
+                    gold: char.gold,
+                    rep: char.reputation,
+                    sp: char.skillPoints
+                }),
                 inline: false
             },
-            { name: 'الحياة', value: `HP **${char.hp}/${char.maxHp}**${char.inCombat ? ' ⚔️ (في قتال)' : ''}`, inline: true },
-            { name: 'المنطقة', value: zone ? `**${zone.nameAr}**` : char.zoneId, inline: true },
-            { name: 'المهارات', value: stats, inline: false },
             {
-                name: 'التجهيز',
-                value: `سلاح: **${itemLabel(char.equipped?.weapon)}**\nدرع: **${itemLabel(char.equipped?.armor)}**`,
+                name: i18n.t(lang, 'life'),
+                value: `HP **${char.hp}/${char.maxHp}**${char.inCombat ? i18n.t(lang, 'inFight') : ''}`,
+                inline: true
+            },
+            {
+                name: i18n.t(lang, 'zone'),
+                value: zone ? `**${i18n.localeName(zone, lang)}**` : char.zoneId,
+                inline: true
+            },
+            { name: i18n.t(lang, 'skills'), value: stats, inline: false },
+            {
+                name: i18n.t(lang, 'gear'),
+                value: `${i18n.t(lang, 'weapon')}: **${itemLabel(char.equipped?.weapon, lang)}**\n${i18n.t(lang, 'armor')}: **${itemLabel(char.equipped?.armor, lang)}**`,
                 inline: false
             },
             {
-                name: 'سجل',
-                value: `قتل **${char.kills}** · بوس **${char.bossKills}** · موت **${char.deaths}**`,
+                name: i18n.t(lang, 'record'),
+                value: i18n.t(lang, 'recordVal', {
+                    kills: char.kills,
+                    bosses: char.bossKills,
+                    deaths: char.deaths
+                }),
                 inline: false
             }
         );
 }
 
-function inventoryEmbed(char) {
+function inventoryEmbed(char, lang) {
     const lines = (char.inventory || []).map((i) => {
         const it = getItem(i.itemId);
-        return `• **${it?.nameAr || i.itemId}** ×${i.qty}${it?.type ? ` _( ${it.type})_` : ''}`;
+        return `• **${itemLabel(i.itemId, lang)}** ×${i.qty}${it?.type ? ` _(${it.type})_` : ''}`;
     });
-    return baseEmbed(`🎒 مخزون — ${char.name}`)
-        .setDescription(lines.length ? lines.join('\n') : '_فاضي_');
+    return baseEmbed(lang, i18n.t(lang, 'invTitle', { name: char.name })).setDescription(
+        lines.length ? lines.join('\n') : i18n.t(lang, 'emptyInv')
+    );
 }
 
 function combatEmbed(session) {
+    const lang = session.lang || 'ar';
     const data = combatService.formatSessionEmbedData(session);
     const cls = getClass(session.classId);
-    return baseEmbed(data.title)
+    const cd =
+        session.skillCd > 0
+            ? i18n.t(lang, 'skillCooldown', { cd: session.skillCd })
+            : i18n.t(lang, 'skillReady');
+    return baseEmbed(lang, data.title)
         .setColor(THEME.COLORS.WARNING)
         .setDescription(
             [
                 data.playerLine,
                 data.enemyLine,
                 '',
-                `مهارة: **${cls?.skill?.nameAr || '—'}**${session.skillCd > 0 ? ` (كولداون ${session.skillCd})` : ' ✓'}`,
+                i18n.t(lang, 'skillLabel', {
+                    skill: i18n.localeName(cls?.skill, lang) || '—',
+                    cd
+                }),
                 '',
                 data.logs
             ].join('\n')
         );
 }
 
-function combatButtons(disabled = false) {
+function combatButtons(lang, disabled = false) {
     return [
         new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('lands:atk').setLabel('هجوم').setStyle(ButtonStyle.Danger).setDisabled(disabled),
-            new ButtonBuilder().setCustomId('lands:skill').setLabel('مهارة').setStyle(ButtonStyle.Primary).setDisabled(disabled),
-            new ButtonBuilder().setCustomId('lands:item').setLabel('عشبة شفاء').setStyle(ButtonStyle.Success).setDisabled(disabled),
-            new ButtonBuilder().setCustomId('lands:flee').setLabel('هروب').setStyle(ButtonStyle.Secondary).setDisabled(disabled)
+            new ButtonBuilder()
+                .setCustomId('lands:atk')
+                .setLabel(i18n.t(lang, 'btnAtk'))
+                .setStyle(ButtonStyle.Danger)
+                .setDisabled(disabled),
+            new ButtonBuilder()
+                .setCustomId('lands:skill')
+                .setLabel(i18n.t(lang, 'btnSkill'))
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(disabled),
+            new ButtonBuilder()
+                .setCustomId('lands:item')
+                .setLabel(i18n.t(lang, 'btnItem'))
+                .setStyle(ButtonStyle.Success)
+                .setDisabled(disabled),
+            new ButtonBuilder()
+                .setCustomId('lands:flee')
+                .setLabel(i18n.t(lang, 'btnFlee'))
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(disabled)
         )
     ];
 }
 
-async function attachCombatCollector(message, userId) {
+async function attachCombatCollector(message, userId, lang) {
     const collector = message.createMessageComponentCollector({
         time: 5 * 60_000,
         filter: (i) => i.user.id === userId && String(i.customId || '').startsWith('lands:')
@@ -342,7 +266,7 @@ async function attachCombatCollector(message, userId) {
             };
             const action = actionMap[i.customId];
             if (!action) {
-                await i.reply({ content: 'زر غير معروف.', ephemeral: true });
+                await i.reply({ content: i18n.t(lang, 'unknownButton'), ephemeral: true });
                 return;
             }
 
@@ -353,8 +277,10 @@ async function attachCombatCollector(message, userId) {
                 action === 'item' ? { itemId: 'healing_herb' } : {}
             );
 
+            const sessionLang = result.session?.lang || lang;
+
             if (!result.ok) {
-                await i.reply({ content: result.error || 'فشل الإجراء.', ephemeral: true });
+                await i.reply({ content: errMsg(sessionLang, result), ephemeral: true });
                 return;
             }
 
@@ -366,20 +292,22 @@ async function attachCombatCollector(message, userId) {
                         : result.outcome === 'lose'
                           ? THEME.COLORS.ERROR
                           : THEME.COLORS.ACCENT;
-                const embed = baseEmbed(
-                    result.outcome === 'win' ? '🏆 انتصار' : result.outcome === 'lose' ? '💀 هزيمة' : '🏃 انسحاب'
-                )
+                const titleKey = result.outcome === 'win' ? 'win' : result.outcome === 'lose' ? 'lose' : 'fleeTitle';
+                const embed = baseEmbed(sessionLang, i18n.t(sessionLang, titleKey))
                     .setColor(color)
                     .setDescription((result.logs || []).join('\n'));
-                await i.update({ embeds: [embed], components: combatButtons(true) });
+                await i.update({ embeds: [embed], components: combatButtons(sessionLang, true) });
                 return;
             }
 
-            await i.update({ embeds: [combatEmbed(result.session)], components: combatButtons(false) });
+            await i.update({
+                embeds: [combatEmbed(result.session)],
+                components: combatButtons(sessionLang, false)
+            });
         } catch (e) {
             console.error('[lands combat]', e);
             try {
-                await i.reply({ content: 'حصل خطأ في القتال.', ephemeral: true });
+                await i.reply({ content: i18n.t(lang, 'combatError'), ephemeral: true });
             } catch (_) {}
         }
     });
@@ -387,79 +315,91 @@ async function attachCombatCollector(message, userId) {
     collector.on('end', async (_, reason) => {
         if (reason === 'ended') return;
         try {
-            await message.edit({ components: combatButtons(true) });
+            await message.edit({ components: combatButtons(lang, true) });
         } catch (_) {}
     });
 }
 
-async function runStart(ctx, name, classKey) {
-    const { userId, guildId, reply } = ctx;
-    const res = await characterService.createCharacter(userId, guildId, name, classKey);
-    if (!res.ok) return reply({ embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)] });
+async function runStart(ctx, name, classKey, lang) {
+    const res = await characterService.createCharacter(ctx.userId, ctx.guildId, name, classKey);
+    if (!res.ok) {
+        return ctx.reply({
+            embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
+        });
+    }
 
-    const embed = baseEmbed('🌅 وُلدت أسطورة جديدة')
+    const cls = res.classDef;
+    const embed = baseEmbed(lang, i18n.t(lang, 'bornTitle'))
         .setColor(THEME.COLORS.SUCCESS)
         .setDescription(
-            [
-                `**${res.character.name}** انضم للأرض المنسية كـ **${res.classDef.nameAr}**.`,
-                '',
-                res.classDef.description,
-                '',
-                `مهارتك الخاصة: **${res.classDef.skill.nameAr}** — ${res.classDef.skill.description}`,
-                '',
-                'ابدأ الاستكشاف: `elora lands hunt`'
-            ].join('\n')
+            i18n.t(lang, 'bornBody', {
+                name: res.character.name,
+                class: i18n.localeName(cls, lang),
+                desc: i18n.localeDesc(cls, lang),
+                skill: i18n.localeName(cls.skill, lang),
+                skillDesc: i18n.localeDesc(cls.skill, lang)
+            })
         );
-    return reply({ embeds: [embed] });
+    return ctx.reply({ embeds: [embed] });
 }
 
-async function runProfile(ctx) {
+async function runProfile(ctx, lang) {
     const char = await characterService.findCharacter(ctx.userId, ctx.guildId);
     if (!char) {
         return ctx.reply({
-            embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription('مفيش شخصية. `elora lands start <اسم> <فئة>`')]
+            embeds: [
+                baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(i18n.t(lang, 'noCharacter'))
+            ]
         });
     }
-    return ctx.reply({ embeds: [profileEmbed(char, ctx.user)] });
+    return ctx.reply({ embeds: [profileEmbed(char, ctx.user, lang)] });
 }
 
-async function runHunt(ctx) {
+async function runHunt(ctx, lang) {
     const res = await combatService.startHunt(ctx.userId, ctx.guildId);
     if (!res.ok) {
         return ctx.reply({
-            embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)]
+            embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
         });
     }
 
-    const msgPayload = {
-        embeds: [combatEmbed(res.session)],
-        components: combatButtons(false)
-    };
-
-    const sent = await ctx.reply(msgPayload, true);
-    if (sent) await attachCombatCollector(sent, ctx.userId);
+    const sessionLang = res.session.lang || lang;
+    const sent = await ctx.reply(
+        { embeds: [combatEmbed(res.session)], components: combatButtons(sessionLang, false) },
+        true
+    );
+    if (sent) await attachCombatCollector(sent, ctx.userId, sessionLang);
 }
 
-async function runCombatText(ctx, action, opts) {
+async function runCombatText(ctx, action, opts, lang) {
     const res = await combatService.playerAction(ctx.userId, ctx.guildId, action, opts);
+    const sessionLang = res.session?.lang || lang;
     if (!res.ok) {
         return ctx.reply({
-            embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)]
+            embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
         });
     }
     if (res.ended) {
         const color =
-            res.outcome === 'win' ? THEME.COLORS.SUCCESS : res.outcome === 'lose' ? THEME.COLORS.ERROR : THEME.COLORS.ACCENT;
+            res.outcome === 'win'
+                ? THEME.COLORS.SUCCESS
+                : res.outcome === 'lose'
+                  ? THEME.COLORS.ERROR
+                  : THEME.COLORS.ACCENT;
+        const titleKey = res.outcome === 'win' ? 'win' : res.outcome === 'lose' ? 'lose' : 'fleeTitle';
         return ctx.reply({
             embeds: [
-                baseEmbed(res.outcome === 'win' ? '🏆 انتصار' : res.outcome === 'lose' ? '💀 هزيمة' : '🏃 انسحاب')
+                baseEmbed(sessionLang, i18n.t(sessionLang, titleKey))
                     .setColor(color)
                     .setDescription((res.logs || []).join('\n'))
             ]
         });
     }
-    const sent = await ctx.reply({ embeds: [combatEmbed(res.session)], components: combatButtons(false) }, true);
-    if (sent) await attachCombatCollector(sent, ctx.userId);
+    const sent = await ctx.reply(
+        { embeds: [combatEmbed(res.session)], components: combatButtons(sessionLang, false) },
+        true
+    );
+    if (sent) await attachCombatCollector(sent, ctx.userId, sessionLang);
 }
 
 function makeCtxFromMessage(message) {
@@ -491,56 +431,113 @@ function makeCtxFromInteraction(interaction) {
 }
 
 async function dispatch(ctx, sub, args) {
+    const lang = await i18n.resolveLang(ctx.userId, ctx.guildId);
     const cmd = String(sub || 'help').toLowerCase();
 
-    if (cmd === 'help' || cmd === 'مساعدة' || cmd === 'دليل') return runHelp(ctx);
+    if (cmd === 'help' || cmd === 'مساعدة' || cmd === 'دليل') return runHelp(ctx, lang);
+
+    if (cmd === 'lang' || cmd === 'language' || cmd === 'لغة') {
+        const next = args[0];
+        if (!next) {
+            const label = lang === 'en' ? i18n.t(lang, 'langNameEn') : i18n.t(lang, 'langNameAr');
+            return ctx.reply({
+                embeds: [
+                    baseEmbed(lang, i18n.t(lang, 'langTitle')).setDescription(
+                        i18n.t(lang, 'langCurrent', { lang: label })
+                    )
+                ]
+            });
+        }
+        const res = await i18n.setLang(ctx.userId, ctx.guildId, next);
+        if (!res.ok) {
+            return ctx.reply({
+                embeds: [
+                    baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(i18n.t(lang, 'langBad'))
+                ]
+            });
+        }
+        const newLang = res.locale;
+        const label = newLang === 'en' ? i18n.t(newLang, 'langNameEn') : i18n.t(newLang, 'langNameAr');
+        return ctx.reply({
+            embeds: [
+                baseEmbed(newLang, i18n.t(newLang, 'langTitle'))
+                    .setColor(THEME.COLORS.SUCCESS)
+                    .setDescription(i18n.t(newLang, 'langSet', { lang: label }))
+            ]
+        });
+    }
 
     if (cmd === 'start' || cmd === 'create' || cmd === 'ابدأ') {
         const name = args[0];
         const classKey = args[1];
         if (!name || !classKey) {
             const classes = listClasses()
-                .map((c) => `• **${c.nameAr}** (\`${c.id}\`) — ${c.description}`)
+                .map((c) => `• **${i18n.localeName(c, lang)}** (\`${c.id}\`) — ${i18n.localeDesc(c, lang)}`)
                 .join('\n');
             return ctx.reply({
                 embeds: [
-                    baseEmbed('إنشاء شخصية')
-                        .setDescription(`الاستخدام: \`elora lands start <اسم> <فئة>\`\n\n${classes}`)
+                    baseEmbed(lang, i18n.t(lang, 'createTitle')).setDescription(
+                        i18n.t(lang, 'createUsage', { classes })
+                    )
                 ]
             });
         }
-        return runStart(ctx, name, classKey);
+        return runStart(ctx, name, classKey, lang);
     }
 
-    if (cmd === 'profile' || cmd === 'me' || cmd === 'ملف') return runProfile(ctx);
+    if (cmd === 'profile' || cmd === 'me' || cmd === 'ملف') return runProfile(ctx, lang);
 
     if (cmd === 'inv' || cmd === 'inventory' || cmd === 'مخزون') {
         const char = await characterService.findCharacter(ctx.userId, ctx.guildId);
-        if (!char) return ctx.reply({ embeds: [baseEmbed('❌').setDescription('مفيش شخصية.')] });
-        return ctx.reply({ embeds: [inventoryEmbed(char)] });
+        if (!char) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setDescription(i18n.t(lang, 'noCharacterShort'))]
+            });
+        }
+        return ctx.reply({ embeds: [inventoryEmbed(char, lang)] });
     }
 
     if (cmd === 'allocate' || cmd === 'stat' || cmd === 'نقطة') {
         const res = await characterService.allocateStat(ctx.userId, ctx.guildId, args[0]);
-        if (!res.ok) return ctx.reply({ embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)] });
+        if (!res.ok) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
+            });
+        }
         return ctx.reply({
             embeds: [
-                baseEmbed('📈 تطوير')
+                baseEmbed(lang, i18n.t(lang, 'allocateTitle'))
                     .setColor(THEME.COLORS.SUCCESS)
-                    .setDescription(`زودت **${STAT_AR[res.stat] || res.stat}**. متبقي **${res.character.skillPoints}** نقطة.`)
+                    .setDescription(
+                        i18n.t(lang, 'allocated', {
+                            stat: i18n.statLabel(lang, res.stat),
+                            left: res.character.skillPoints
+                        })
+                    )
             ]
         });
     }
 
     if (cmd === 'zones' || cmd === 'مناطق') {
         const char = await characterService.findCharacter(ctx.userId, ctx.guildId);
-        if (!char) return ctx.reply({ embeds: [baseEmbed('❌').setDescription('مفيش شخصية.')] });
+        if (!char) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setDescription(i18n.t(lang, 'noCharacterShort'))]
+            });
+        }
         const unlocked = listUnlockedZones(char.level, char.reputation);
-        const lines = unlocked.map((z) => `• \`${z.id}\` — **${z.nameAr}** (مستوى ${z.minLevel}+ / سمعة ${z.minReputation}+)`);
+        const lines = unlocked.map((z) =>
+            i18n.t(lang, 'zoneLine', {
+                id: z.id,
+                name: i18n.localeName(z, lang),
+                level: z.minLevel,
+                rep: z.minReputation
+            })
+        );
         return ctx.reply({
             embeds: [
-                baseEmbed('🧭 المناطق المتاحة').setDescription(
-                    lines.join('\n') || 'مفيش مناطق متاحة… غريب.'
+                baseEmbed(lang, i18n.t(lang, 'zonesTitle')).setDescription(
+                    lines.join('\n') || i18n.t(lang, 'zonesEmpty')
                 )
             ]
         });
@@ -550,89 +547,131 @@ async function dispatch(ctx, sub, args) {
         const zoneId = String(args[0] || '').toLowerCase();
         if (!zoneId) {
             return ctx.reply({
-                embeds: [baseEmbed('سفر').setDescription('`elora lands travel misty_edge`')]
+                embeds: [
+                    baseEmbed(lang, i18n.t(lang, 'travelTitle')).setDescription(i18n.t(lang, 'travelHint'))
+                ]
             });
         }
         const res = await characterService.travel(ctx.userId, ctx.guildId, zoneId);
-        if (!res.ok) return ctx.reply({ embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.reason || res.error)] });
+        if (!res.ok) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
+            });
+        }
         return ctx.reply({
             embeds: [
-                baseEmbed('🏕️ وصلت')
-                    .setDescription(`انت دلوقتي في **${res.zone.nameAr}**.\n${res.zone.description}`)
+                baseEmbed(lang, i18n.t(lang, 'arrived')).setDescription(
+                    i18n.t(lang, 'arrivedBody', {
+                        name: i18n.localeName(res.zone, lang),
+                        desc: i18n.localeDesc(res.zone, lang)
+                    })
+                )
             ]
         });
     }
 
     if (cmd === 'rest' || cmd === 'راحة') {
         const res = await characterService.rest(ctx.userId, ctx.guildId);
-        if (!res.ok) return ctx.reply({ embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)] });
+        if (!res.ok) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
+            });
+        }
         return ctx.reply({
             embeds: [
-                baseEmbed('😴 راحة')
+                baseEmbed(lang, i18n.t(lang, 'restTitle'))
                     .setColor(THEME.COLORS.SUCCESS)
-                    .setDescription(`تعافت بالكامل. دفعت **${res.cost}** ذهب.\nHP **${res.character.hp}/${res.character.maxHp}**`)
+                    .setDescription(
+                        i18n.t(lang, 'restBody', {
+                            cost: res.cost,
+                            hp: res.character.hp,
+                            max: res.character.maxHp
+                        })
+                    )
             ]
         });
     }
 
     if (cmd === 'hunt' || cmd === 'explore' || cmd === 'صيد' || cmd === 'استكشاف') {
-        return runHunt(ctx);
+        return runHunt(ctx, lang);
     }
 
-    if (cmd === 'attack' || cmd === 'هجوم') return runCombatText(ctx, 'attack');
-    if (cmd === 'skill' || cmd === 'مهارة') return runCombatText(ctx, 'skill');
-    if (cmd === 'item' || cmd === 'غرض') return runCombatText(ctx, 'item', { itemId: args[0] || 'healing_herb' });
-    if (cmd === 'flee' || cmd === 'هروب') return runCombatText(ctx, 'flee');
+    if (cmd === 'attack' || cmd === 'هجوم') return runCombatText(ctx, 'attack', {}, lang);
+    if (cmd === 'skill' || cmd === 'مهارة') return runCombatText(ctx, 'skill', {}, lang);
+    if (cmd === 'item' || cmd === 'غرض') {
+        return runCombatText(ctx, 'item', { itemId: args[0] || 'healing_herb' }, lang);
+    }
+    if (cmd === 'flee' || cmd === 'هروب') return runCombatText(ctx, 'flee', {}, lang);
 
     if (cmd === 'quest' || cmd === 'daily' || cmd === 'مهمة') {
         const char = await characterService.findCharacter(ctx.userId, ctx.guildId);
-        if (!char) return ctx.reply({ embeds: [baseEmbed('❌').setDescription('مفيش شخصية.')] });
+        if (!char) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setDescription(i18n.t(lang, 'noCharacterShort'))]
+            });
+        }
         questService.ensureDailyQuest(char);
         await char.save();
         const q = char.dailyQuest;
-        const status = q.claimed ? '✅ تم الاستلام' : q.completed ? '🎁 جاهزة للاستلام' : `تقدّم **${q.progress}/${q.target.count}**`;
+        const status = q.claimed
+            ? i18n.t(lang, 'questClaimed')
+            : q.completed
+              ? i18n.t(lang, 'questReady')
+              : i18n.t(lang, 'questProgress', { cur: q.progress, max: q.target.count });
         return ctx.reply({
             embeds: [
-                baseEmbed(`📋 مهمة يومية — ${q.titleAr}`)
-                    .setDescription(
-                        [
-                            q.descriptionAr,
-                            '',
-                            status,
-                            '',
-                            `مكافأة: **${q.rewardXp}** XP · **${q.rewardGold}** ذهب · **${q.rewardReputation}** سمعة`,
-                            q.completed && !q.claimed ? 'استلم بـ `elora lands claim`' : ''
-                        ]
-                            .filter(Boolean)
-                            .join('\n')
-                    )
+                baseEmbed(lang, i18n.t(lang, 'questTitle', { title: questService.questTitle(q, lang) })).setDescription(
+                    [
+                        questService.questDesc(q, lang),
+                        '',
+                        status,
+                        '',
+                        i18n.t(lang, 'questReward', {
+                            xp: q.rewardXp,
+                            gold: q.rewardGold,
+                            rep: q.rewardReputation
+                        }),
+                        q.completed && !q.claimed ? i18n.t(lang, 'questClaimHint') : ''
+                    ]
+                        .filter(Boolean)
+                        .join('\n')
+                )
             ]
         });
     }
 
     if (cmd === 'claim' || cmd === 'استلام') {
         const char = await characterService.findCharacter(ctx.userId, ctx.guildId);
-        if (!char) return ctx.reply({ embeds: [baseEmbed('❌').setDescription('مفيش شخصية.')] });
-        const res = questService.claimDaily(char);
+        if (!char) {
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setDescription(i18n.t(lang, 'noCharacterShort'))]
+            });
+        }
+        const res = questService.claimDaily(char, lang);
         if (!res.ok) {
             await char.save();
-            return ctx.reply({ embeds: [baseEmbed('❌').setColor(THEME.COLORS.ERROR).setDescription(res.error)] });
+            return ctx.reply({
+                embeds: [baseEmbed(lang, '❌').setColor(THEME.COLORS.ERROR).setDescription(errMsg(lang, res))]
+            });
         }
         const leveled = characterService.applyLevelUps(char);
         await char.save();
         return ctx.reply({
             embeds: [
-                baseEmbed('🎁 مكافأة يومية')
+                baseEmbed(lang, i18n.t(lang, 'claimTitle'))
                     .setColor(THEME.COLORS.SUCCESS)
                     .setDescription(
-                        `+${res.rewards.xp} XP · +${res.rewards.gold} ذهب · +${res.rewards.reputation} سمعة` +
-                            (leveled ? `\n🌟 مستوى جديد ×${leveled}!` : '')
+                        i18n.t(lang, 'claimBody', {
+                            xp: res.rewards.xp,
+                            gold: res.rewards.gold,
+                            rep: res.rewards.reputation
+                        }) + (leveled ? i18n.t(lang, 'levelUp', { n: leveled }) : '')
                     )
             ]
         });
     }
 
-    return ctx.reply({ embeds: [helpEmbed()] });
+    return runHelp(ctx, lang);
 }
 
 module.exports = {
@@ -640,64 +679,75 @@ module.exports = {
     aliases: ['land', 'forgotten', 'منسية', 'rpg'],
     data: new SlashCommandBuilder()
         .setName('lands')
-        .setDescription('الأرض المنسية — RPG نصي مستمر')
+        .setDescription('The Forgotten Lands — persistent text RPG / الأرض المنسية')
+        .addSubcommand((sc) => sc.setName('help').setDescription('Game guide / دليل اللعبة'))
         .addSubcommand((sc) =>
             sc
-                .setName('help')
-                .setDescription('قائمة أوامر اللعبة')
+                .setName('lang')
+                .setDescription('Set language / اختيار اللغة')
+                .addStringOption((o) =>
+                    o
+                        .setName('locale')
+                        .setDescription('ar or en')
+                        .setRequired(true)
+                        .addChoices({ name: 'العربية', value: 'ar' }, { name: 'English', value: 'en' })
+                )
         )
         .addSubcommand((sc) =>
             sc
                 .setName('start')
-                .setDescription('إنشاء شخصية')
-                .addStringOption((o) => o.setName('name').setDescription('اسم الشخصية').setRequired(true))
+                .setDescription('Create character / إنشاء شخصية')
+                .addStringOption((o) => o.setName('name').setDescription('Character name').setRequired(true))
                 .addStringOption((o) =>
                     o
                         .setName('class')
-                        .setDescription('الفئة')
+                        .setDescription('Class / الفئة')
                         .setRequired(true)
                         .addChoices(
-                            { name: 'محارب', value: 'warrior' },
-                            { name: 'ساحر', value: 'mage' },
-                            { name: 'قاتل', value: 'assassin' },
-                            { name: 'راعي', value: 'shepherd' }
+                            { name: 'Warrior / محارب', value: 'warrior' },
+                            { name: 'Mage / ساحر', value: 'mage' },
+                            { name: 'Assassin / قاتل', value: 'assassin' },
+                            { name: 'Shepherd / راعي', value: 'shepherd' }
                         )
                 )
         )
-        .addSubcommand((sc) => sc.setName('profile').setDescription('عرض الشخصية'))
-        .addSubcommand((sc) => sc.setName('inv').setDescription('المخزون'))
+        .addSubcommand((sc) => sc.setName('profile').setDescription('Character profile / الملف'))
+        .addSubcommand((sc) => sc.setName('inv').setDescription('Inventory / المخزون'))
         .addSubcommand((sc) =>
             sc
                 .setName('allocate')
-                .setDescription('صرف نقطة مهارة')
+                .setDescription('Spend skill point / صرف نقطة')
                 .addStringOption((o) =>
                     o
                         .setName('stat')
-                        .setDescription('المهارة')
+                        .setDescription('Stat')
                         .setRequired(true)
                         .addChoices(
-                            { name: 'قوة', value: 'strength' },
-                            { name: 'رشاقة', value: 'agility' },
-                            { name: 'ذكاء', value: 'intelligence' },
-                            { name: 'حظ', value: 'luck' },
-                            { name: 'حيوية', value: 'vitality' }
+                            { name: 'Strength / قوة', value: 'strength' },
+                            { name: 'Agility / رشاقة', value: 'agility' },
+                            { name: 'Intelligence / ذكاء', value: 'intelligence' },
+                            { name: 'Luck / حظ', value: 'luck' },
+                            { name: 'Vitality / حيوية', value: 'vitality' }
                         )
                 )
         )
-        .addSubcommand((sc) => sc.setName('zones').setDescription('المناطق المتاحة'))
+        .addSubcommand((sc) => sc.setName('zones').setDescription('Zones / المناطق'))
         .addSubcommand((sc) =>
             sc
                 .setName('travel')
-                .setDescription('السفر لمنطقة')
-                .addStringOption((o) => o.setName('zone').setDescription('معرف المنطقة').setRequired(true))
+                .setDescription('Travel / سفر')
+                .addStringOption((o) => o.setName('zone').setDescription('Zone id').setRequired(true))
         )
-        .addSubcommand((sc) => sc.setName('rest').setDescription('راحة واستعادة HP'))
-        .addSubcommand((sc) => sc.setName('hunt').setDescription('استكشاف وقتال'))
-        .addSubcommand((sc) => sc.setName('quest').setDescription('المهمة اليومية'))
-        .addSubcommand((sc) => sc.setName('claim').setDescription('استلام مكافأة المهمة')),
+        .addSubcommand((sc) => sc.setName('rest').setDescription('Rest / راحة'))
+        .addSubcommand((sc) => sc.setName('hunt').setDescription('Hunt / صيد'))
+        .addSubcommand((sc) => sc.setName('quest').setDescription('Daily quest / مهمة يومية'))
+        .addSubcommand((sc) => sc.setName('claim').setDescription('Claim reward / استلام')),
 
     async execute(message, client, args) {
-        if (!message.guild) return message.reply('اللعبة شغّالة جوه السيرفرات فقط.');
+        if (!message.guild) {
+            const lang = await i18n.resolveLang(message.author.id, 'dm');
+            return message.reply(i18n.t(lang, 'guildOnly'));
+        }
         const sub = args?.[0] || 'help';
         const rest = (args || []).slice(1);
         return dispatch(makeCtxFromMessage(message), sub, rest);
@@ -705,7 +755,8 @@ module.exports = {
 
     async executeSlash(interaction) {
         if (!interaction.guild) {
-            return interaction.reply({ content: 'اللعبة شغّالة جوه السيرفرات فقط.', ephemeral: true });
+            const lang = await i18n.resolveLang(interaction.user.id, 'dm');
+            return interaction.reply({ content: i18n.t(lang, 'guildOnly'), ephemeral: true });
         }
         const sub = interaction.options.getSubcommand();
         const args = [];
@@ -715,24 +766,21 @@ module.exports = {
             args.push(interaction.options.getString('stat'));
         } else if (sub === 'travel') {
             args.push(interaction.options.getString('zone'));
+        } else if (sub === 'lang') {
+            args.push(interaction.options.getString('locale'));
         }
         return dispatch(makeCtxFromInteraction(interaction), sub, args);
     },
 
-    // discord.js commandHandler expects `.execute` for slash too in some bots —
-    // support both interaction and message.
     async run(interaction) {
         return this.executeSlash(interaction);
     }
 };
 
-// Normalize slash entry: commandHandler calls command.execute(interaction)
 const _origExecute = module.exports.execute;
 module.exports.execute = async function executeCompat(first, second, third) {
-    // Slash: (interaction)
     if (first && first.isChatInputCommand && first.isChatInputCommand()) {
         return module.exports.executeSlash(first);
     }
-    // Prefix: (message, client, args)
     return _origExecute(first, second, third);
 };

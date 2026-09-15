@@ -13,7 +13,9 @@ const questSchema = new mongoose.Schema(
         id: String,
         type: { type: String, default: 'daily' },
         titleAr: String,
+        titleEn: String,
         descriptionAr: String,
+        descriptionEn: String,
         target: {
             kind: String, // kill | collect | explore
             monsterId: String,
@@ -37,6 +39,7 @@ const landsCharacterSchema = new mongoose.Schema(
         guildId: { type: String, required: true },
         name: { type: String, required: true, maxlength: 24 },
         classId: { type: String, required: true, enum: ['warrior', 'mage', 'assassin', 'shepherd'] },
+        locale: { type: String, enum: ['ar', 'en'], default: 'ar' },
 
         level: { type: Number, default: 1, min: 1 },
         xp: { type: Number, default: 0, min: 0 },

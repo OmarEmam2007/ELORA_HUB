@@ -1,5 +1,6 @@
 const { getMonster } = require('../../data/lands/monsters');
 const { getItem } = require('../../data/lands/items');
+const { itemLabel } = require('../../data/lands/items');
 
 function startOfUtcDay(d = new Date()) {
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -14,7 +15,9 @@ const DAILY_TEMPLATES = [
     {
         id: 'daily_kill_rats',
         titleAr: 'تنظيف الضباب',
+        titleEn: 'Clear the Mist',
         descriptionAr: 'اقتل 3 من فئران الضباب.',
+        descriptionEn: 'Slay 3 Fog Rats.',
         target: { kind: 'kill', monsterId: 'fog_rat', count: 3 },
         rewardXp: 45,
         rewardGold: 30,
@@ -23,7 +26,9 @@ const DAILY_TEMPLATES = [
     {
         id: 'daily_kill_wolves',
         titleAr: 'صوت العواء',
+        titleEn: 'Howl in the Woods',
         descriptionAr: 'اقتل ذئبين من ذئاب الطحالب.',
+        descriptionEn: 'Slay 2 Moss Wolves.',
         target: { kind: 'kill', monsterId: 'moss_wolf', count: 2 },
         rewardXp: 55,
         rewardGold: 35,
@@ -32,7 +37,9 @@ const DAILY_TEMPLATES = [
     {
         id: 'daily_kill_slime',
         titleAr: 'الرماد اللزج',
+        titleEn: 'Sticky Ash',
         descriptionAr: 'اقضِ على 2 هلام رماد.',
+        descriptionEn: 'Defeat 2 Ash Slimes.',
         target: { kind: 'kill', monsterId: 'ash_slime', count: 2 },
         rewardXp: 50,
         rewardGold: 32,
@@ -41,7 +48,9 @@ const DAILY_TEMPLATES = [
     {
         id: 'daily_collect_herb',
         titleAr: 'جمع الأعشاب',
+        titleEn: 'Herb Gathering',
         descriptionAr: 'اجمع 2 عشبة شفاء (من القتال أو المخزون الحالي يُحتسب عند التسليم).',
+        descriptionEn: 'Collect 2 Healing Herbs (combat loot or current inventory counts on claim).',
         target: { kind: 'collect', itemId: 'healing_herb', count: 2 },
         rewardXp: 40,
         rewardGold: 28,
@@ -72,7 +81,9 @@ function ensureDailyQuest(char) {
         id: tpl.id,
         type: 'daily',
         titleAr: tpl.titleAr,
+        titleEn: tpl.titleEn,
         descriptionAr: tpl.descriptionAr,
+        descriptionEn: tpl.descriptionEn,
         target: { ...tpl.target },
         progress: 0,
         rewardXp: tpl.rewardXp,
@@ -96,21 +107,23 @@ async function onKillProgress(char, monsterId) {
     }
 }
 
-function claimDaily(char) {
+function claimDaily(char, lang = 'ar') {
     ensureDailyQuest(char);
     const q = char.dailyQuest;
-    if (!q) return { ok: false, error: 'مفيش مهمة يومية.' };
-    if (q.claimed) return { ok: false, error: 'استلمت مكافأة المهمة اليومية بالفعل.' };
+    if (!q) return { ok: false, errorKey: 'noDaily' };
+    if (q.claimed) return { ok: false, errorKey: 'dailyAlready' };
 
     if (q.target?.kind === 'collect') {
         const itemId = q.target.itemId;
         const need = q.target.count || 1;
         const have = (char.inventory || []).find((i) => i.itemId === itemId)?.qty || 0;
         if (have < need) {
-            const name = getItem(itemId)?.nameAr || itemId;
-            return { ok: false, error: `محتاج **${need}** من **${name}** (معاك ${have}).` };
+            return {
+                ok: false,
+                errorKey: 'needCollect',
+                errorVars: { need, item: itemLabel(itemId, lang), have }
+            };
         }
-        // consume
         const inv = char.inventory.find((i) => i.itemId === itemId);
         inv.qty -= need;
         if (inv.qty <= 0) char.inventory = char.inventory.filter((i) => i.itemId !== itemId);
@@ -119,7 +132,11 @@ function claimDaily(char) {
     }
 
     if (!q.completed) {
-        return { ok: false, error: `لسه ما خلّصتش المهمة (${q.progress}/${q.target.count}).` };
+        return {
+            ok: false,
+            errorKey: 'dailyIncomplete',
+            errorVars: { cur: q.progress, max: q.target.count }
+        };
     }
 
     char.xp += q.rewardXp || 0;
@@ -137,9 +154,21 @@ function claimDaily(char) {
     };
 }
 
+function questTitle(q, lang) {
+    if (!q) return '';
+    return lang === 'en' ? q.titleEn || q.titleAr : q.titleAr || q.titleEn;
+}
+
+function questDesc(q, lang) {
+    if (!q) return '';
+    return lang === 'en' ? q.descriptionEn || q.descriptionAr : q.descriptionAr || q.descriptionEn;
+}
+
 module.exports = {
     ensureDailyQuest,
     onKillProgress,
     claimDaily,
+    questTitle,
+    questDesc,
     DAILY_TEMPLATES
 };

@@ -11,8 +11,8 @@ const {
     countItem
 } = require('./characterService');
 const { onKillProgress } = require('./questService');
+const { t, localeName, effectLabel } = require('./i18n');
 
-/** In-memory active combats: key = `${guildId}:${userId}` */
 const activeCombats = new Map();
 
 function combatKey(guildId, userId) {
@@ -27,18 +27,22 @@ function chance(p) {
     return Math.random() < p;
 }
 
-function tickEffects(entity) {
+function langOf(sessionOrChar) {
+    return sessionOrChar?.lang || sessionOrChar?.locale || 'ar';
+}
+
+function tickEffects(entity, lang) {
     const logs = [];
     const next = [];
     for (const fx of entity.effects || []) {
         if (fx.type === 'poison') {
             const dmg = fx.power || 4;
             entity.hp = clamp(entity.hp - dmg, 0, entity.maxHp);
-            logs.push(`☠️ سم: **-${dmg}** HP`);
+            logs.push(t(lang, 'poisonTick', { dmg }));
         } else if (fx.type === 'burn') {
             const dmg = fx.power || 5;
             entity.hp = clamp(entity.hp - dmg, 0, entity.maxHp);
-            logs.push(`🔥 حرق: **-${dmg}** HP`);
+            logs.push(t(lang, 'burnTick', { dmg }));
         }
         const turns = (fx.turns || 1) - 1;
         if (turns > 0) next.push({ ...fx, turns });
@@ -101,22 +105,18 @@ function buildEnemyFromMonster(monster, memory) {
     let attack = monster.attack;
     let defense = monster.defense;
     let agility = monster.agility;
-    // Monsters learn: if player spam skills, they raise resistance / aggression
     if (memory) {
         if ((memory.skillUses || 0) > (memory.attacks || 0) + 2) {
             defense += 2;
             attack += 1;
         }
-        if ((memory.items || 0) >= 3) {
-            agility += 2; // interrupt / pressure healers
-        }
-        if ((memory.fights || 0) >= 5) {
-            attack += Math.min(5, Math.floor(memory.fights / 5));
-        }
+        if ((memory.items || 0) >= 3) agility += 2;
+        if ((memory.fights || 0) >= 5) attack += Math.min(5, Math.floor(memory.fights / 5));
     }
     return {
         id: monster.id,
         nameAr: monster.nameAr,
+        nameEn: monster.nameEn,
         level: monster.level,
         hp: monster.hp,
         maxHp: monster.hp,
@@ -130,29 +130,32 @@ function buildEnemyFromMonster(monster, memory) {
     };
 }
 
+function formatFx(effects, lang) {
+    const list = (effects || []).map((e) => effectLabel(lang, e.type));
+    return list.length ? list.join(', ') : t(lang, 'none');
+}
+
 async function startHunt(userId, guildId) {
     const char = await findCharacter(userId, guildId);
-    if (!char) return { ok: false, error: 'مفيش شخصية. `.lands start <اسم> <فئة>`' };
+    if (!char) return { ok: false, errorKey: 'noCharacter' };
 
-    // Recover stale combat flag after bot restart
     if (char.inCombat && !activeCombats.has(combatKey(guildId, userId))) {
         char.inCombat = false;
         await char.save();
     }
 
     if (char.inCombat || activeCombats.has(combatKey(guildId, userId))) {
-        return { ok: false, error: 'انت أصلاً في قتال. استخدم أزرار القتال أو `.lands flee`.' };
+        return { ok: false, errorKey: 'alreadyFighting' };
     }
-    if (char.hp <= 0) {
-        return { ok: false, error: 'انت ميت/منهك. استخدم `.lands rest` عشان تتعافى.' };
-    }
+    if (char.hp <= 0) return { ok: false, errorKey: 'needRest' };
 
     const zone = getZone(char.zoneId);
-    if (!zone) return { ok: false, error: 'منطقتك مش معرّفة.' };
+    if (!zone) return { ok: false, errorKey: 'zoneUndefined' };
 
     const monster = pickZoneMonster(zone, { bossChance: char.level >= 3 ? 0.1 : 0.04 });
-    if (!monster) return { ok: false, error: 'مفيش وحوش هنا دلوقتي.' };
+    if (!monster) return { ok: false, errorKey: 'noMonsters' };
 
+    const lang = char.locale === 'en' ? 'en' : 'ar';
     rememberMonster(char, monster.id, 'fight_start');
     const memory = getMemory(char, monster.id);
     const enemy = buildEnemyFromMonster(monster, memory);
@@ -162,26 +165,30 @@ async function startHunt(userId, guildId) {
     const session = {
         userId,
         guildId,
+        lang,
         turn: 1,
         skillCd: 0,
-        playerEffects: [],
         enemy,
         classId: char.classId,
         skillId: cls.skill.id,
-        logs: [`ظهر **${enemy.nameAr}** (مستوى ${enemy.level}) في **${zone.nameAr}**!`],
-        startedAt: Date.now()
+        logs: [
+            t(lang, 'appear', {
+                enemy: localeName(enemy, lang),
+                level: enemy.level,
+                zone: localeName(zone, lang)
+            })
+        ],
+        startedAt: Date.now(),
+        player: {
+            hp: char.hp,
+            maxHp: char.maxHp,
+            stats,
+            effects: [],
+            name: char.name
+        }
     };
 
     char.inCombat = true;
-    // Sync runtime effects onto a lightweight player snapshot
-    session.player = {
-        hp: char.hp,
-        maxHp: char.maxHp,
-        stats,
-        effects: [],
-        name: char.name
-    };
-
     activeCombats.set(combatKey(guildId, userId), session);
     await char.save();
 
@@ -189,30 +196,39 @@ async function startHunt(userId, guildId) {
 }
 
 function formatSessionEmbedData(session) {
-    const pFx = (session.player.effects || []).map((e) => e.type).join(', ') || 'لا شيء';
-    const eFx = (session.enemy.effects || []).map((e) => e.type).join(', ') || 'لا شيء';
+    const lang = langOf(session);
     return {
-        title: `⚔️ قتال — الدور ${session.turn}`,
-        playerLine: `**${session.player.name}** HP: **${session.player.hp}/${session.player.maxHp}** | تأثيرات: ${pFx}`,
-        enemyLine: `**${session.enemy.nameAr}** HP: **${session.enemy.hp}/${session.enemy.maxHp}** | تأثيرات: ${eFx}`,
+        title: t(lang, 'combatTurn', { turn: session.turn }),
+        playerLine: t(lang, 'playerLine', {
+            name: session.player.name,
+            hp: session.player.hp,
+            max: session.player.maxHp,
+            fx: formatFx(session.player.effects, lang)
+        }),
+        enemyLine: t(lang, 'enemyLine', {
+            name: localeName(session.enemy, lang),
+            hp: session.enemy.hp,
+            max: session.enemy.maxHp,
+            fx: formatFx(session.enemy.effects, lang)
+        }),
         logs: session.logs.slice(-6).join('\n')
     };
 }
 
 async function enemyTurn(session, char) {
+    const lang = langOf(session);
     const logs = [];
-    logs.push(...tickEffects(session.enemy));
+    logs.push(...tickEffects(session.enemy, lang));
     if (session.enemy.hp <= 0) return logs;
 
     if (hasEffect(session.enemy, 'fear') || hasEffect(session.enemy, 'paralyze')) {
-        logs.push(`💫 **${session.enemy.nameAr}** مش قادر يتحرك!`);
+        logs.push(t(lang, 'cantMove', { name: localeName(session.enemy, lang) }));
         return logs;
     }
 
-    // Learned behavior: prefer skills if player heals a lot
     const memory = getMemory(char, session.enemy.id);
-    let useSkill = false;
     const skills = session.enemy.skills || [];
+    let useSkill = false;
     if (skills.length) {
         let skillChance = skills[0].chance || 0.25;
         if (memory && (memory.items || 0) > 2) skillChance += 0.15;
@@ -225,26 +241,35 @@ async function enemyTurn(session, char) {
         let dmg = Math.max(1, Math.floor(session.enemy.attack * mult - (session.player.stats.defense || 0) * 0.5));
         if (hasEffect(session.player, 'fear')) dmg = Math.floor(dmg * 1.15);
         session.player.hp = clamp(session.player.hp - dmg, 0, session.player.maxHp);
-        logs.push(`💥 **${session.enemy.nameAr}** استخدم **${sk.nameAr}** → **-${dmg}**`);
+        logs.push(
+            t(lang, 'enemySkill', {
+                name: localeName(session.enemy, lang),
+                skill: localeName(sk, lang),
+                dmg
+            })
+        );
         if (sk.effect) applyEffect(session.player, sk.effect, sk.turns || 2, sk.effect === 'poison' ? 4 : 5);
         if (sk.healSelf) {
             const heal = Math.floor(dmg * sk.healSelf);
             session.enemy.hp = clamp(session.enemy.hp + heal, 0, session.enemy.maxHp);
-            logs.push(`🩸 امتص **${heal}** HP`);
+            logs.push(t(lang, 'drainHeal', { heal }));
         }
+    } else if (!computeHit(session.enemy.agility, session.player.stats.agility || 1)) {
+        logs.push(t(lang, 'enemyMiss', { name: localeName(session.enemy, lang) }));
     } else {
-        if (!computeHit(session.enemy.agility, session.player.stats.agility || 1)) {
-            logs.push(`💨 **${session.enemy.nameAr}** أخطأ الضربة!`);
-        } else {
-            let dmg = Math.max(1, Math.floor(session.enemy.attack - (session.player.stats.defense || 0) * 0.6 + Math.random() * 3));
-            session.player.hp = clamp(session.player.hp - dmg, 0, session.player.maxHp);
-            logs.push(`🗡️ **${session.enemy.nameAr}** ضربك → **-${dmg}**`);
-        }
+        let dmg = Math.max(1, Math.floor(session.enemy.attack - (session.player.stats.defense || 0) * 0.6 + Math.random() * 3));
+        session.player.hp = clamp(session.player.hp - dmg, 0, session.player.maxHp);
+        logs.push(t(lang, 'enemyHit', { name: localeName(session.enemy, lang), dmg }));
     }
     return logs;
 }
 
+function xpToLose(char) {
+    return Math.floor(20 + char.level * 8);
+}
+
 async function resolveEnd(session, char, outcome) {
+    const lang = langOf(session);
     const key = combatKey(session.guildId, session.userId);
     activeCombats.delete(key);
     char.inCombat = false;
@@ -257,11 +282,10 @@ async function resolveEnd(session, char, outcome) {
         const gold = rollGold(monster);
         const drops = rollDrops(monster);
         let xp = monster.xp || 20;
-        // Luck bonus
         if (chance(clamp((char.stats.luck || 0) * 0.02, 0, 0.25))) {
             xp = Math.floor(xp * 1.25);
             gold += Math.floor(gold * 0.25);
-            result.logs.push('🍀 حظك زاد المكافأة!');
+            result.logs.push(t(lang, 'luckBonus'));
         }
 
         char.xp += xp;
@@ -278,16 +302,25 @@ async function resolveEnd(session, char, outcome) {
         result.leveled = applyLevelUps(char);
         await onKillProgress(char, monster.id);
 
-        result.rewards = { xp, gold, drops: drops.map(itemLabel), reputation: monster.isBoss ? 8 : 1 };
-        result.logs.push(`✅ انتصرت على **${session.enemy.nameAr}**!`);
-        result.logs.push(`+${xp} XP | +${gold} ذهب${drops.length ? ` | سقط: ${drops.map(itemLabel).join(', ')}` : ''}`);
-        if (result.leveled) result.logs.push(`🌟 ارتفع مستواك ×${result.leveled}! (نقاط مهارات: ${char.skillPoints})`);
+        const dropNames = drops.map((id) => itemLabel(id, lang));
+        result.rewards = { xp, gold, drops: dropNames, reputation: monster.isBoss ? 8 : 1 };
+        result.logs.push(t(lang, 'winLog', { enemy: localeName(session.enemy, lang) }));
+        result.logs.push(
+            t(lang, 'rewardLog', {
+                xp,
+                gold,
+                drops: dropNames.length ? t(lang, 'dropsPart', { list: dropNames.join(', ') }) : ''
+            })
+        );
+        if (result.leveled) {
+            result.logs.push(t(lang, 'leveledLog', { n: result.leveled, sp: char.skillPoints }));
+        }
     } else if (outcome === 'flee') {
-        result.logs.push('🏃 هربت من القتال.');
+        result.logs.push(t(lang, 'fledLog'));
         if (chance(0.35)) {
             const loss = Math.min(char.gold, 3 + char.level);
             char.gold -= loss;
-            result.logs.push(`خسرت **${loss}** ذهب وأنت بتهرب.`);
+            result.logs.push(t(lang, 'fleeGoldLoss', { loss }));
         }
     } else if (outcome === 'lose') {
         char.deaths += 1;
@@ -298,7 +331,13 @@ async function resolveEnd(session, char, outcome) {
         let lostItem = null;
         const candidates = (char.inventory || []).filter((i) => {
             const def = getItem(i.itemId);
-            return def && def.type !== 'weapon' && def.type !== 'armor' && i.itemId !== char.equipped?.weapon && i.itemId !== char.equipped?.armor;
+            return (
+                def &&
+                def.type !== 'weapon' &&
+                def.type !== 'armor' &&
+                i.itemId !== char.equipped?.weapon &&
+                i.itemId !== char.equipped?.armor
+            );
         });
         if (candidates.length && chance(0.45)) {
             const pick = candidates[Math.floor(Math.random() * candidates.length)];
@@ -306,18 +345,19 @@ async function resolveEnd(session, char, outcome) {
             lostItem = pick.itemId;
         }
 
-        result.death = { xpLoss, lostItem: lostItem ? itemLabel(lostItem) : null };
-        result.logs.push(`💀 سقطت أمام **${session.enemy.nameAr}**.`);
-        result.logs.push(`خسرت **${xpLoss}** XP${lostItem ? ` و **${itemLabel(lostItem)}**` : ''}.`);
+        result.death = { xpLoss, lostItem: lostItem ? itemLabel(lostItem, lang) : null };
+        result.logs.push(t(lang, 'deathLog', { enemy: localeName(session.enemy, lang) }));
+        result.logs.push(
+            t(lang, 'deathLoss', {
+                xp: xpLoss,
+                item: lostItem ? t(lang, 'deathItem', { item: itemLabel(lostItem, lang) }) : ''
+            })
+        );
     }
 
     await char.save();
     result.character = char;
     return result;
-}
-
-function xpToLose(char) {
-    return Math.floor(20 + char.level * 8);
 }
 
 async function playerAction(userId, guildId, action, opts = {}) {
@@ -329,21 +369,22 @@ async function playerAction(userId, guildId, action, opts = {}) {
             char.inCombat = false;
             await char.save();
         }
-        return { ok: false, error: 'مفيش قتال شغال. ابدأ بـ `elora lands hunt`' };
+        return { ok: false, errorKey: 'noCombat' };
     }
 
+    const lang = langOf(session);
     const char = await findCharacter(userId, guildId);
-    if (!char) return { ok: false, error: 'الشخصية مش موجودة.' };
+    if (!char) return { ok: false, errorKey: 'charMissing' };
 
     const logs = [];
-    logs.push(...tickEffects(session.player));
+    logs.push(...tickEffects(session.player, lang));
     if (session.player.hp <= 0) {
         const end = await resolveEnd(session, char, 'lose');
         return { ok: true, ended: true, ...end, session };
     }
 
     if (hasEffect(session.player, 'paralyze') || (hasEffect(session.player, 'fear') && chance(0.4))) {
-        logs.push('😨 مش قادر تتحرك كويس الدور ده!');
+        logs.push(t(lang, 'stunned'));
         session.logs.push(...logs);
         const eLogs = await enemyTurn(session, char);
         session.logs.push(...eLogs);
@@ -364,78 +405,88 @@ async function playerAction(userId, guildId, action, opts = {}) {
     if (action === 'attack') {
         rememberMonster(char, session.enemy.id, 'attack');
         if (!computeHit(stats.agility || 1, session.enemy.agility, stats.luck || 0)) {
-            logs.push('💨 ضربة ضايعة!');
+            logs.push(t(lang, 'miss'));
         } else {
             let raw = playerAttackPower(stats, char.classId);
             let dmg = Math.max(1, Math.floor(raw - session.enemy.defense * 0.5 + Math.random() * 4));
-            const crit = computeCrit(stats.luck || 0);
-            if (crit) {
+            if (computeCrit(stats.luck || 0)) {
                 dmg = Math.floor(dmg * 1.75);
-                logs.push('⚡ ضربة حاسمة!');
+                logs.push(t(lang, 'crit'));
             }
             session.enemy.hp = clamp(session.enemy.hp - dmg, 0, session.enemy.maxHp);
-            logs.push(`⚔️ هاجمت → **-${dmg}**`);
+            logs.push(t(lang, 'attackLog', { dmg }));
         }
     } else if (action === 'skill') {
         if (session.skillCd > 0) {
-            return { ok: false, error: `المهارة لسه في كولداون (**${session.skillCd}** دور).` };
+            return { ok: false, errorKey: 'skillCd', errorVars: { cd: session.skillCd } };
         }
         rememberMonster(char, session.enemy.id, 'skill');
         const sk = cls.skill;
         session.skillCd = sk.cooldown || 3;
+        const skillName = localeName(sk, lang);
 
         if (sk.id === 'crushing_blow') {
             let dmg = Math.max(1, Math.floor(playerAttackPower(stats, 'warrior') * 1.7 - session.enemy.defense * 0.3));
             session.enemy.hp = clamp(session.enemy.hp - dmg, 0, session.enemy.maxHp);
             session.enemy.defense = Math.max(0, session.enemy.defense - 2);
-            logs.push(`🔨 **${sk.nameAr}** → **-${dmg}** (دفاع العدو ↓)`);
+            logs.push(t(lang, 'crushLog', { skill: skillName, dmg }));
         } else if (sk.id === 'fireball') {
             let dmg = Math.max(1, Math.floor(playerAttackPower(stats, 'mage') * 1.55));
             session.enemy.hp = clamp(session.enemy.hp - dmg, 0, session.enemy.maxHp);
             if (chance(0.65)) {
                 applyEffect(session.enemy, 'burn', 3, 5);
-                logs.push(`🔥 **${sk.nameAr}** → **-${dmg}** + حرق!`);
+                logs.push(t(lang, 'fireBurn', { skill: skillName, dmg }));
             } else {
-                logs.push(`🔥 **${sk.nameAr}** → **-${dmg}**`);
+                logs.push(t(lang, 'fireLog', { skill: skillName, dmg }));
             }
         } else if (sk.id === 'venom_stab') {
             let dmg = Math.max(1, Math.floor(playerAttackPower(stats, 'assassin') * 1.4));
             session.enemy.hp = clamp(session.enemy.hp - dmg, 0, session.enemy.maxHp);
             applyEffect(session.enemy, 'poison', 3, 5);
-            logs.push(`🗡️ **${sk.nameAr}** → **-${dmg}** + سم!`);
+            logs.push(t(lang, 'venomLog', { skill: skillName, dmg }));
         } else if (sk.id === 'natures_blessing') {
             const heal = Math.floor(20 + (stats.intelligence || 1) * 3 + (stats.vitality || 1) * 2);
             session.player.hp = clamp(session.player.hp + heal, 0, session.player.maxHp);
             session.player.effects = (session.player.effects || []).filter((e) => e.type !== 'poison' && e.type !== 'fear');
-            logs.push(`🌿 **${sk.nameAr}** → شفاء **+${heal}** وإزالة سموم/خوف`);
+            logs.push(t(lang, 'blessLog', { skill: skillName, heal }));
         } else {
-            logs.push('مهارة غير معروفة.');
+            logs.push(t(lang, 'unknownSkill'));
         }
     } else if (action === 'item') {
         const itemId = opts.itemId || 'healing_herb';
         const item = getItem(itemId);
-        if (!item || !item.combatUsable) return { ok: false, error: 'الصنف ده مش ينفع في القتال.' };
-        if (countItem(char, itemId) < 1) return { ok: false, error: `معندكش **${item.nameAr}**.` };
+        if (!item || !item.combatUsable) return { ok: false, errorKey: 'itemNotCombat' };
+        if (countItem(char, itemId) < 1) {
+            return { ok: false, errorKey: 'noItem', errorVars: { item: itemLabel(itemId, lang) } };
+        }
         removeFromInventory(char, itemId, 1);
         rememberMonster(char, session.enemy.id, 'item');
         if (item.heal) {
             session.player.hp = clamp(session.player.hp + item.heal, 0, session.player.maxHp);
-            logs.push(`🧪 استخدمت **${item.nameAr}** → **+${item.heal}** HP`);
+            logs.push(t(lang, 'useItem', { item: itemLabel(itemId, lang), heal: item.heal }));
         }
         if (item.clearEffects) {
             session.player.effects = (session.player.effects || []).filter((e) => !item.clearEffects.includes(e.type));
-            logs.push(`تم تطهير: ${item.clearEffects.join(', ')}`);
+            logs.push(
+                t(lang, 'cleansed', {
+                    list: item.clearEffects.map((e) => effectLabel(lang, e)).join(', ')
+                })
+            );
         }
     } else if (action === 'flee') {
-        const fleeChance = clamp(0.4 + ((stats.agility || 1) - session.enemy.agility) * 0.04 + (stats.luck || 0) * 0.01, 0.2, 0.85);
+        const fleeChance = clamp(
+            0.4 + ((stats.agility || 1) - session.enemy.agility) * 0.04 + (stats.luck || 0) * 0.01,
+            0.2,
+            0.85
+        );
         if (chance(fleeChance)) {
-            session.logs.push(...logs, '🏃 نجحت في الهروب!');
+            session.logs.push(...logs, t(lang, 'fleeOk'));
             const end = await resolveEnd(session, char, 'flee');
             return { ok: true, ended: true, ...end, session };
         }
-        logs.push('🚫 فشل الهروب!');
+        logs.push(t(lang, 'fleeFail'));
     } else {
-        return { ok: false, error: 'أمر قتال غير معروف.' };
+        return { ok: false, errorKey: 'unknownCombat' };
     }
 
     session.logs.push(...logs);
