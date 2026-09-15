@@ -30,35 +30,228 @@ function baseEmbed(title) {
         .setTimestamp();
 }
 
-function helpEmbed() {
-    return baseEmbed('🗺️ الأرض المنسية — الأوامر')
-        .setDescription(
-            [
-                'عالم RPG نصي مستمر. شخصيتك بتتطور والعالم بيتغير.',
-                '',
-                '**البداية**',
-                '`elora lands start <اسم> <فئة>` — محارب / ساحر / قاتل / راعي',
-                '',
-                '**الشخصية**',
-                '`elora lands profile` — ملفك',
-                '`elora lands inv` — المخزون',
-                '`elora lands allocate <مهارة>` — صرف نقطة مهارة',
-                '`elora lands rest` — استراحة (ذهب مقابل HP كامل)',
-                '',
-                '**العالم**',
-                '`elora lands zones` — المناطق المتاحة',
-                '`elora lands travel <منطقة>` — سفر',
-                '`elora lands hunt` — استكشاف وقتال',
-                '',
-                '**المهام**',
-                '`elora lands quest` — المهمة اليومية',
-                '`elora lands claim` — استلام المكافأة',
-                '',
-                '**القتال**',
-                'أزرار: هجوم / مهارة / غرض / هروب',
-                'أو: `elora lands attack` / `skill` / `item` / `flee`'
-            ].join('\n')
-        );
+const HELP_PAGES = [
+    {
+        id: 'world',
+        label: 'العالم',
+        color: THEME.COLORS.ACCENT,
+        title: '🌫️ الأرض المنسية',
+        description: [
+            '*العالم ده مبتخلصش.*',
+            'مفيش نهاية سعيدة… وفيه نهاية أسوأ لو ماتّ كتير.',
+            '',
+            'دي أرض نسيها الزمن. كل لاعب ليه **أسطورة خاصة** بتكبر معاه،',
+            'والوحوش بتتعلم من طريقة لعبك، والمناطق بتتفتح لما تستاهلها.',
+            '',
+            '▸ شخصيتك دائمة',
+            '▸ قراراتك ليها ثمن',
+            '▸ كل يوم مهمة جديدة',
+            '▸ كل قتال قصة قصيرة',
+            '',
+            'اضغط الأزرار تحت وتعلّم إزاي تدخل العالم.'
+        ].join('\n')
+    },
+    {
+        id: 'birth',
+        label: 'الولادة',
+        color: '#9B8CFF',
+        title: '🌅 أول نفس — إنشاء شخصية',
+        description: [
+            'قبل أي سيف أو تعويذة… اختار **مين هتكون**.',
+            '',
+            '```',
+            '.land start <اسمك> <فئتك>',
+            '```',
+            'مثال: `.land start راكان محارب`',
+            '',
+            '**الفئات الأربع**',
+            '⚔️ **محارب** — ضرب ثقيل وصمود. مهارة: *ضربة ساحقة*',
+            '🔮 **ساحر** — سحر ناري وحرق. مهارة: *كرة نارية*',
+            '🗡️ **قاتل** — سرعة وسم. مهارة: *طعنة السم*',
+            '🌿 **راعي** — شفاء وتوازن. مهارة: *بركة الطبيعة*',
+            '',
+            'هتبدأ في **حافة الضباب** بذهب بسيط، عشبة شفاء، وسلاح فئة.'
+        ].join('\n')
+    },
+    {
+        id: 'loop',
+        label: 'الإيقاع',
+        color: THEME.COLORS.SUCCESS,
+        title: '🔁 إيقاع المغامرة',
+        description: [
+            'اللعبة بتتلعب كحلقة حلوة… وكل لفة بتكبّرك:',
+            '',
+            '**١)** شوف نفسك → `.land profile`',
+            '**٢)** اطلع للضباب → `.land hunt`',
+            '**٣)** اقاتل بالأزرار (هجوم / مهارة / غرض / هروب)',
+            '**٤)** اجمع XP وذهب وأغراض',
+            '**٥)** لو اتصابت → `.land rest`',
+            '**٦)** كل يوم → `.land quest` وبعدين `.land claim`',
+            '',
+            'لما تطلع مستوى هتاخد **٣ نقاط مهارات**.',
+            'اصرفهم بحكمة:',
+            '`.land allocate قوة` أو `رشاقة` / `ذكاء` / `حظ` / `حيوية`',
+            '',
+            '*السمعة بتفتح أراضي أخطر. المستوى لوحده مش كفاية.*'
+        ].join('\n')
+    },
+    {
+        id: 'combat',
+        label: 'القتال',
+        color: THEME.COLORS.WARNING,
+        title: '⚔️ القتال الدوري',
+        description: [
+            'القتال **مش زر عشوائي** — كل دور اختيار.',
+            '',
+            '🔴 **هجوم** — ضرر ثابت حسب فئتك',
+            '🔵 **مهارة** — ضربة خاصة (فيها كولداون)',
+            '🟢 **عشبة شفاء** — تنقذ حياتك في اللحظة الصح',
+            '⚪ **هروب** — مش مضمون… والفضيحة ليها ثمن أحيانًا',
+            '',
+            'في سمّ، حرق، خوف… ولو اتشللت الدور ممكن يعدّي من غيرك.',
+            '',
+            '🧠 **الوحوش بتتذكرك.**',
+            'لو بتشفي كتير → هتضغط عليك.',
+            'لو بتكرّر المهارة → هتتعلم تقاوم.',
+            '',
+            'تقدر كمان تكتب:',
+            '`.land attack` · `.land skill` · `.land item` · `.land flee`'
+        ].join('\n')
+    },
+    {
+        id: 'danger',
+        label: 'الخطر',
+        color: THEME.COLORS.ERROR,
+        title: '💀 الموت والعالم',
+        description: [
+            'الموت هنا **مش ريسبون لطيف**.',
+            '',
+            '▸ بتخسر خبرة',
+            '▸ ممكن تخسر غرض من المخزون',
+            '▸ بترجع بحياة ضعيفة… محتاج راحة',
+            '',
+            '🗺️ **المناطق**',
+            '`.land zones` — شوف اللي اتفتح لك',
+            '`.land travel misty_edge` — ارجع للحافة',
+            '`.land travel bone_hollow` — وادي العظام (مستوى + سمعة)',
+            '',
+            '📋 **المهمة اليومية** بتتجدد كل يوم.',
+            ' خلّصها، وبعدين `.land claim` عشان المكافأة.',
+            '',
+            'اللعبة مستمرة. كل ما تقدّم… العالم يكبر ويتوحّش أكتر.'
+        ].join('\n')
+    },
+    {
+        id: 'cmds',
+        label: 'الأوامر',
+        color: THEME.COLORS.SECONDARY,
+        title: '⌨️ مرجع سريع',
+        description: [
+            'كل الأوامر تشتغل بـ `.land` أو `elora lands` أو `/lands`',
+            '',
+            '`start` `profile` `inv` `allocate` `rest`',
+            '`zones` `travel` `hunt`',
+            '`quest` `claim`',
+            '`attack` `skill` `item` `flee` `help`',
+            '',
+            '**أول ١٠ دقايق المقترحة**',
+            '① `.land start اسمك فئتك`',
+            '② `.land hunt` → اضغط الأزرار',
+            '③ `.land quest`',
+            '④ `.land profile` وشوف إنت فين',
+            '',
+            '*مرحباً بك في النسيان… خليك أسوأ كابوس للضباب.*'
+        ].join('\n')
+    }
+];
+
+function helpEmbed(pageIndex = 0) {
+    const total = HELP_PAGES.length;
+    const i = ((pageIndex % total) + total) % total;
+    const page = HELP_PAGES[i];
+
+    return new EmbedBuilder()
+        .setColor(page.color)
+        .setTitle(page.title)
+        .setDescription(page.description)
+        .addFields({
+            name: 'الدليل',
+            value: HELP_PAGES.map((p, idx) => (idx === i ? `**▸ ${p.label}**` : `· ${p.label}`)).join('   '),
+            inline: false
+        })
+        .setFooter({ text: `الأرض المنسية • صفحة ${i + 1}/${total} • دليل المغامر` })
+        .setTimestamp();
+}
+
+function helpButtons(pageIndex = 0, disabled = false) {
+    const total = HELP_PAGES.length;
+    const i = ((pageIndex % total) + total) % total;
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`landshelp:prev:${i}`)
+                .setLabel('السابق')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(disabled),
+            new ButtonBuilder()
+                .setCustomId(`landshelp:next:${i}`)
+                .setLabel('التالي')
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(disabled),
+            new ButtonBuilder()
+                .setCustomId(`landshelp:close:${i}`)
+                .setLabel('إغلاق')
+                .setStyle(ButtonStyle.Danger)
+                .setDisabled(disabled)
+        )
+    ];
+}
+
+async function attachHelpCollector(message, ownerId, startPage = 0) {
+    let page = startPage;
+    const collector = message.createMessageComponentCollector({
+        time: 4 * 60_000,
+        filter: (i) => String(i.customId || '').startsWith('landshelp:')
+    });
+
+    collector.on('collect', async (i) => {
+        try {
+            if (i.user.id !== ownerId) {
+                await i.reply({ content: 'الدليل ده مش بتاعك… افتح `.land help` لنفسك.', ephemeral: true });
+                return;
+            }
+
+            const [, action, raw] = String(i.customId).split(':');
+            const current = Number(raw) || page;
+
+            if (action === 'close') {
+                collector.stop('close');
+                await i.update({ embeds: [helpEmbed(current)], components: helpButtons(current, true) });
+                return;
+            }
+
+            if (action === 'prev') page = current - 1;
+            else if (action === 'next') page = current + 1;
+            else page = current;
+
+            const total = HELP_PAGES.length;
+            page = ((page % total) + total) % total;
+            await i.update({ embeds: [helpEmbed(page)], components: helpButtons(page, false) });
+        } catch (e) {
+            console.error('[lands help]', e);
+        }
+    });
+
+    collector.on('end', async () => {
+        try {
+            await message.edit({ components: helpButtons(page, true) });
+        } catch (_) {}
+    });
+}
+
+async function runHelp(ctx) {
+    const sent = await ctx.reply({ embeds: [helpEmbed(0)], components: helpButtons(0) }, true);
+    if (sent) await attachHelpCollector(sent, ctx.userId, 0);
 }
 
 function profileEmbed(char, user) {
@@ -300,7 +493,7 @@ function makeCtxFromInteraction(interaction) {
 async function dispatch(ctx, sub, args) {
     const cmd = String(sub || 'help').toLowerCase();
 
-    if (cmd === 'help' || cmd === 'مساعدة') return ctx.reply({ embeds: [helpEmbed()] });
+    if (cmd === 'help' || cmd === 'مساعدة' || cmd === 'دليل') return runHelp(ctx);
 
     if (cmd === 'start' || cmd === 'create' || cmd === 'ابدأ') {
         const name = args[0];
