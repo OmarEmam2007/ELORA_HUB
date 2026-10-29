@@ -4,7 +4,7 @@ const THEME = require('../../utils/theme');
 
 module.exports = {
     name: 'lvl',
-    aliases: ['levels', 'level', 'rank', 'ranks'],
+    aliases: ['levels', 'level', 'ranks', 'leaderboard'],
     async execute(message, client, args) {
         const top = await User.find({ guildId: message.guild.id })
             .sort({ level: -1, xp: -1, voiceLevel: -1, voiceXp: -1 })

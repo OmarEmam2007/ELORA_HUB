@@ -1,5 +1,4 @@
 const { extractCandidateUrls, isSupportedSocialVideoUrl, buildSourcedPayload, buildSourcedDirectUrlPayload } = require('../../services/socialVideoPreviewService');
-const User = require('../../models/User');
 const CustomReply = require('../../models/CustomReply');
 const Bump = require('../../models/Bump');
 const { handlePrefixCommand } = require('../../handlers/prefixCommandHandler');
@@ -655,27 +654,10 @@ module.exports = {
             console.error('[CUSTOM REPLIES] Error:', e);
         }
 
-        // --- Chat Leveling System (XP) ---
+        // --- Chat Leveling System (XP + milestones + rank cards) ---
         try {
-            const now = Date.now();
-            let profile = await User.findOne({ userId: message.author.id, guildId: message.guild.id }).catch(() => null);
-            if (!profile) {
-                profile = new User({ userId: message.author.id, guildId: message.guild.id });
-            }
-
-            const lastXP = profile.lastMessageTimestamp || 0;
-            if (now - lastXP > 60000) {
-                const xpGain = Math.floor(Math.random() * 10) + 15;
-                profile.xp = (profile.xp || 0) + xpGain;
-                profile.lastMessageTimestamp = now;
-
-                let needed = (profile.level || 1) * 100;
-                if (profile.xp >= needed) {
-                    profile.xp -= needed;
-                    profile.level = (profile.level || 1) + 1;
-                }
-                await profile.save().catch(() => {});
-            }
+            const levelingService = require('../../services/levelingService');
+            await levelingService.handleMessageXp(message);
         } catch (e) {
             console.error('[LEVELING] Error:', e);
         }
